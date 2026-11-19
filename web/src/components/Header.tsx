@@ -9,11 +9,8 @@ import { GitHubIcon } from "./Icons";
 import { useNetwork } from "@/lib/network";
 
 const links = [
-  { href: "/shield", label: "Shield" },
-  { href: "/", label: "Setup" },
-  { href: "/checkout", label: "Checkout" },
-  { href: "/activity", label: "Activity" },
-  { href: "/docs", label: "Docs" },
+  { href: "/shield", label: "Owner console" },
+  { href: "/setup", label: "Wallet setup" },
 ];
 
 export function Header() {
@@ -26,7 +23,7 @@ export function Header() {
     <>
       <header className="topbar">
         <div className="shell">
-          <Link href="/" className="brand">
+          <Link href="/shield" className="brand">
             <span className="brand-mark" aria-hidden="true" />
             <span className="brand-name">SpendShield</span>
           </Link>

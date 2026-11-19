@@ -1,6 +1,6 @@
 "use client";
 
-import { erc20Abi, getLogsChunked, PERIODS, spendShieldAbi, TUSD8_ADDRESS, txUrl } from "@aevum-kit/aevum";
+import { addressUrl, erc20Abi, getLogsChunked, PERIODS, spendShieldAbi, TUSD8_ADDRESS, txUrl } from "@aevum-kit/aevum";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { formatUnits, getAbiItem, isAddress, parseUnits, type Address, type Hash, type PublicClient } from "viem";
@@ -35,6 +35,31 @@ export default function ShieldPage() {
   const wallet = useReadContract({ address: tokenAddr, abi: erc20Abi, functionName: "balanceOf", args: me ? [me] : undefined, chainId, query: { enabled: ready } });
   const vault = useReadContract({ address: shield, abi: spendShieldAbi, functionName: "balanceOf", args: me ? [me] : undefined, chainId, query: { enabled: ready } });
   const frozen = useReadContract({ address: shield, abi: spendShieldAbi, functionName: "frozen", args: me ? [me] : undefined, chainId, query: { enabled: ready } });
+
+  // Public, no wallet needed: what every vault's agents have done, so visitors see it working first.
+  const network = useQuery({
+    queryKey: ["shield-network", chainId, shield],
+    enabled: Boolean(client && shield),
+    refetchInterval: 20_000,
+    queryFn: async () => {
+      const head = await client!.getBlockNumber();
+      const floor = head > 50_000n ? head - 50_000n : 0n;
+      const from = net.shieldBlock !== undefined && net.shieldBlock > floor ? net.shieldBlock : floor;
+      const [paid, tvl] = await Promise.all([
+        getLogsChunked(client!, { address: shield!, event: getAbiItem({ abi: spendShieldAbi, name: "AgentPaid" }), fromBlock: from, toBlock: head }),
+        client!.readContract({ address: tokenAddr, abi: erc20Abi, functionName: "balanceOf", args: [shield!] }),
+      ]);
+      const volume = paid.reduce((sum, l) => sum + (l.args.amount ?? 0n), 0n);
+      return {
+        tvl,
+        volume,
+        count: paid.length,
+        agents: new Set(paid.map((l) => l.args.agent)).size,
+        owners: new Set(paid.map((l) => l.args.owner)).size,
+        latest: [...paid].reverse().slice(0, 6),
+      };
+    },
+  });
 
   const history = useQuery({
     queryKey: ["shield-history", chainId, shield, me],
@@ -177,6 +202,69 @@ export default function ShieldPage() {
           </p>
         </div>
       </div>
+
+      <section className="card">
+        <div className="row-between" style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
+          <h2>Live on {net.label}</h2>
+          {net.hasExplorer && (
+            <a className="fine" href={addressUrl(shield)} target="_blank" rel="noreferrer">
+              SpendShield contract {short(shield)} ↗
+            </a>
+          )}
+        </div>
+        <p className="sub">Every vault, every agent. Read straight from the chain, no wallet needed.</p>
+        <div className="kpis">
+          <div className="kpi">
+            <span className="fine">Held in vaults</span>
+            <strong>{fmt(network.data?.tvl)} tUSD8</strong>
+          </div>
+          <div className="kpi">
+            <span className="fine">Agent payments</span>
+            <strong>{network.data ? network.data.count : "…"}</strong>
+          </div>
+          <div className="kpi">
+            <span className="fine">Paid by agents</span>
+            <strong>{fmt(network.data?.volume)} tUSD8</strong>
+          </div>
+          <div className="kpi">
+            <span className="fine">Agents · owners</span>
+            <strong>{network.data ? `${network.data.agents} · ${network.data.owners}` : "…"}</strong>
+          </div>
+        </div>
+        {network.data && network.data.latest.length > 0 && (
+          <div className="table-wrap" style={{ marginTop: 16 }}>
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Agent</th>
+                  <th>Paid</th>
+                  <th className="right">Amount</th>
+                  <th className="right">Block</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {network.data.latest.map((l) => (
+                  <tr key={`${l.transactionHash}-${l.logIndex}`}>
+                    <td className="mono">{short(l.args.agent ?? "")}</td>
+                    <td className="mono">{short(l.args.merchant ?? "")}</td>
+                    <td className="right num">{fmt(l.args.amount)} tUSD8</td>
+                    <td className="right num">{l.blockNumber?.toString()}</td>
+                    <td>
+                      {net.hasExplorer && (
+                        <a href={txUrl(l.transactionHash)} target="_blank" rel="noreferrer">
+                          Tx
+                        </a>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {network.error && <p className="fine">Couldn&apos;t read the chain: {(network.error as Error).message}</p>}
+      </section>
 
       {!ready && <div className="notice warn">Connect your wallet on {net.label} to manage your vault.</div>}
       {busy && <div className="notice warn" aria-live="polite">{busy}: confirm in your wallet, then wait for Aevum…</div>}
