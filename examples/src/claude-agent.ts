@@ -36,7 +36,12 @@ writeFileSync(
       spendshield: {
         command: path.join(examplesDir, "node_modules/.bin/tsx"),
         args: [`--env-file=${path.join(examplesDir, ".env")}`, path.join(here, "mcp-server.ts")],
-        env: { PROOF_ONCHAIN: process.env.PROOF_ONCHAIN ?? "" },
+        // Pass through overrides set on the command line (they win over examples/.env in the server).
+        env: Object.fromEntries(
+          ["PROOF_ONCHAIN", "OWNER_ADDRESS", "SHIELD_ADDRESS", "MERCHANT_API", "RPC_URL"]
+            .filter((k) => process.env[k] !== undefined)
+            .map((k) => [k, process.env[k]!]),
+        ),
       },
     },
   }),
