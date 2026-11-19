@@ -1,0 +1,28 @@
+{
+  "name": "spendshield",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SpendShield: scoped, revocable tUSD8 budgets for AI agents on QDay Aevum testnet. Based on Aevum Starter Kit (MIT, PQA Labs).",
+  "license": "MIT",
+  "packageManager": "pnpm@10.8.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --filter web dev",
+    "build": "pnpm --filter web build",
+    "typecheck": "pnpm -r typecheck",
+    "example": "pnpm --filter examples run",
+    "check:shanghai": "node tools/check-shanghai.mjs contracts/out",
+    "abi": "node tools/gen-abi.mjs"
+  },
+  "pnpm": {
+    "overrides": {
+      "@base-org/account": "2.2.0",
+      "ws@>=8.0.0 <8.21.0": "^8.21.0"
+    },
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}
