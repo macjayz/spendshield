@@ -9,10 +9,15 @@
     "pay-gasless": "tsx --env-file-if-exists=.env src/pay-gasless.ts",
     "read-payments": "tsx --env-file-if-exists=.env src/read-payments.ts",
     "typecheck": "tsc --noEmit",
-    "agent": "tsx --env-file-if-exists=.env src/agent.ts"
+    "agent": "tsx --env-file-if-exists=.env src/agent.ts",
+    "ai-agent": "tsx --env-file-if-exists=.env src/ai-agent.ts",
+    "claude-agent": "tsx --env-file-if-exists=.env src/claude-agent.ts",
+    "mcp": "tsx --env-file-if-exists=.env src/mcp-server.ts"
   },
   "dependencies": {
     "@aevum-kit/aevum": "workspace:*",
+    "@anthropic-ai/sdk": "1.10.0",
+    "@modelcontextprotocol/sdk": "1.32.2",
     "viem": "2.57.12"
   },
   "devDependencies": {
