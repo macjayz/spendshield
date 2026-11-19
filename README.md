@@ -134,7 +134,21 @@ An HTTP 402 paywall (the same shape as x402) that settles on Aevum. The server p
 
 ### The owner console ([`web/src/app/shield/page.tsx`](web/src/app/shield/page.tsx))
 
-Connect a wallet and: see wallet and vault balances, deposit, withdraw, freeze, grant sessions, watch each agent's spend meter, approve or reject requests, and see every agent payment with explorer links.
+Connect a wallet and: see wallet and vault balances, deposit, withdraw, freeze, grant sessions, watch each agent's spend meter, approve or reject requests, and see every agent payment with explorer links. Without a wallet it shows live network-wide activity read from the chain.
+
+### Telegram alerts ([`examples/src/notifier.ts`](examples/src/notifier.ts))
+
+Your phone buzzes when an agent needs you. The bot watches SpendShield's events on Aevum and messages every chat subscribed to an owner:
+
+- 🙋 **an agent asks for approval**, with a *Review request #N* button that opens the console scrolled to that request
+- 💸 agent payments, ✅/❌ approvals and rejections, 🧊 freeze/unfreeze, 🔒 revoked agents
+
+In Telegram: `/watch 0xYourAddress`, `/unwatch`, `/list`, `/status` (vault balance and pending approvals). The bot only reads the chain; approving still takes the owner's wallet.
+
+```bash
+# TELEGRAM_BOT_TOKEN from @BotFather in examples/.env, then:
+pnpm example notifier
+```
 
 ---
 

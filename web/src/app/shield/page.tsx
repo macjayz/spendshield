@@ -2,7 +2,7 @@
 
 import { addressUrl, erc20Abi, getLogsChunked, PERIODS, spendShieldAbi, TUSD8_ADDRESS, txUrl } from "@aevum-kit/aevum";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { formatUnits, getAbiItem, isAddress, parseUnits, type Address, type Hash, type PublicClient } from "viem";
 import { useAccount, useConfig, usePublicClient, useReadContract } from "wagmi";
 import { readContract, simulateContract, waitForTransactionReceipt, writeContract } from "wagmi/actions";
@@ -98,6 +98,18 @@ export default function ShieldPage() {
       return { sessions, requests, paid: [...paid].reverse(), from, head };
     },
   });
+
+  // Links like /shield#request-3 (from the Telegram alert) scroll to that request once it has loaded.
+  const [focusId, setFocusId] = useState<string | null>(null);
+  useEffect(() => {
+    const read = () => setFocusId(/^#request-(\d+)$/.exec(window.location.hash)?.[1] ?? null);
+    read();
+    window.addEventListener("hashchange", read);
+    return () => window.removeEventListener("hashchange", read);
+  }, []);
+  useEffect(() => {
+    if (focusId && history.data) document.getElementById(`request-${focusId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [focusId, history.data]);
 
   function refresh() {
     void qc.invalidateQueries();
@@ -454,7 +466,7 @@ export default function ShieldPage() {
                   const expired = Number(q.expiresAt) * 1000 < Date.now();
                   const pending = q.status === 1 && !expired;
                   return (
-                    <tr key={id.toString()}>
+                    <tr key={id.toString()} id={`request-${id}`} className={focusId === id.toString() ? "focus" : undefined}>
                       <td className="num">{id.toString()}</td>
                       <td className="mono">{short(q.agent)}</td>
                       <td className="mono">{short(q.merchant)}</td>

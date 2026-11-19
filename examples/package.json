@@ -12,7 +12,8 @@
     "agent": "tsx --env-file-if-exists=.env src/agent.ts",
     "ai-agent": "tsx --env-file-if-exists=.env src/ai-agent.ts",
     "claude-agent": "tsx --env-file-if-exists=.env src/claude-agent.ts",
-    "mcp": "tsx --env-file-if-exists=.env src/mcp-server.ts"
+    "mcp": "tsx --env-file-if-exists=.env src/mcp-server.ts",
+    "notifier": "tsx --env-file-if-exists=.env src/notifier.ts"
   },
   "dependencies": {
     "@aevum-kit/aevum": "workspace:*",

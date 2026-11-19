@@ -21,3 +21,6 @@ AGENTS.md
 CLAUDE.md
 .claude/
 .vercel
+
+# Telegram notifier subscriptions and progress
+examples/.notifier-state.json
