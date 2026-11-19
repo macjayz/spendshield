@@ -21,6 +21,7 @@ The same tools ship as an **MCP server**, so any MCP-capable AI (Claude Code, Cl
 
 | | |
 |---|---|
+| **Live app** | **https://spendshield-psi.vercel.app** (owner console + the live pay-per-call shop) |
 | Contract | [`contracts/src/SpendShield.sol`](contracts/src/SpendShield.sol) |
 | SpendShield on Aevum | [`0x0E9578a05BEc3D8BB21f0f4F8C00FF54eB3D7B2D`](https://explorer-test.qday.info/address/0x0E9578a05BEc3D8BB21f0f4F8C00FF54eB3D7B2D) |
 | Deploy tx / block | [`0x50e7d5b0…f42e1`](https://explorer-test.qday.info/tx/0x50e7d5b0e86f764c0741bee375ef9eb58128f84a6a84e6e28e3ddd81c83f42e1) / `3581556` |
@@ -136,6 +137,30 @@ An HTTP 402 paywall (the same shape as x402) that settles on Aevum. The server p
 Connect a wallet and: see wallet and vault balances, deposit, withdraw, freeze, grant sessions, watch each agent's spend meter, approve or reject requests, and see every agent payment with explorer links.
 
 ---
+
+## Try it yourself on Aevum (about 5 minutes)
+
+Everything below uses the live app and the deployed contract; you only need a browser wallet and test tokens.
+
+1. **Get test tokens:** add Aevum testnet to your wallet ([Wallet setup](https://spendshield-psi.vercel.app/setup)), then claim tQDAY and tUSD8 from the [faucet](https://faucet.qday.info) or the QDay Discord.
+2. **Fund your vault:** open the [owner console](https://spendshield-psi.vercel.app/shield), connect, and deposit 1 tUSD8.
+3. **Make an agent:** `cast wallet new` gives you a throwaway agent address and key. In the console, grant it a session, for example 0.1 per payment, 0.5 per day, 7 days, merchant `0xbe888540d324898C81F391163156b593046abe47` (the live shop).
+4. **Run the agent against the live shop:**
+
+   ```bash
+   git clone --recursive https://github.com/macjayz/spendshield.git && cd spendshield && make install
+   cp examples/.env.example examples/.env
+   # SHIELD_ADDRESS=0x0E9578a05BEc3D8BB21f0f4F8C00FF54eB3D7B2D
+   # OWNER_ADDRESS=<your wallet>   AGENT_KEY=<key from step 3>
+   # MERCHANT_API=https://spendshield-psi.vercel.app/api/paid
+   # RELAYER_KEY is optional; without it the agent pays its own gas (send it ~0.05 tQDAY)
+   pnpm example claude-agent      # AI agent (uses your Claude Code login)
+   pnpm example agent             # or the scripted agent, no AI needed
+   ```
+
+5. **Watch it:** payments appear in your console and on the explorer. Ask for `premium-report` to see the agent hit its cap and request your approval; ask for `market-news` to see the injection test.
+
+The shop's items return live data: BTC/ETH/USDC prices (CoinGecko), Hong Kong weather (Open-Meteo), and an agent-economy report computed from Aevum chain data. `market-news` carries the planted injection on purpose.
 
 ## Run it locally (no funds needed)
 

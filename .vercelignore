@@ -1,0 +1,15 @@
+# Never upload secrets (wallet keys live in examples/.env)
+.env
+.env.*
+**/.env
+**/.env.*
+!**/.env.example
+.vercel
+# Not needed to build the website
+node_modules
+**/node_modules
+**/.next
+contracts/out
+contracts/cache
+contracts/broadcast
+contracts/lib
