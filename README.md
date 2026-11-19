@@ -220,12 +220,47 @@ make test-fork   # gasless deposit + gasless agent payment against the real tUSD
 
 The fuzz test throws random amounts and timings at the agent and checks two things every time: the agent never spends more than its period budget, and `check()` always predicts what `pay()` will do.
 
+## Business model
+
+Two sides meet on SpendShield, and both have a reason to pay.
+
+| Who | What they get | How we earn |
+|---|---|---|
+| **Sellers of APIs, data and services to AI agents** | A drop-in HTTP 402 paywall (the shop route in this repo): quotes, on-chain settlement in tUSD8, payment verification, no card processor, no chargebacks | A small fee per settled agent payment (planned ~0.5%, taken by the vault at settlement; not implemented on testnet) |
+| **People and companies running agents** | Budgets, caps, allowlists, expiry, revoke, freeze, human approval, phone alerts and an audit trail, for every agent | Free for individuals; a paid tier for teams: shared budgets across many agents, roles, spending reports, compliance exports |
+
+**Why now:** agents are starting to buy things on their own (x402, agentic commerce), and the missing piece is a way to let them spend without handing over the wallet. Card networks have spend controls; agents on-chain have nothing equivalent yet.
+
+**Distribution:** the MCP server puts SpendShield inside any MCP-capable agent framework in one config line; the 402 shop route is a template any API seller can copy. QDay's own agent payment features (x402 facilitator, stablecoin paymaster, session keys) are natural integration points for mainnet in Q1 2027.
+
+**What stays the same on mainnet:** the contract is already multi-tenant (any owner, any number of agents), so the business is the console, alerts, merchant tooling and team features around it.
+
+## Post-quantum ready, by design
+
+QDay is moving from ECDSA to hybrid ECDSA + ML-DSA-65 signatures, and then to native post-quantum signing. SpendShield is built so that move doesn't require a new contract:
+
+- **Agents can be smart accounts.** Signed agent payments are checked with OpenZeppelin `SignatureChecker`, which accepts ERC-1271 contract wallets. An agent whose wallet verifies ML-DSA (or a hybrid scheme) works with the deployed SpendShield as is.
+- **A broken key can only spend the budget.** If an agent key is ever forged, classical or quantum, the attacker is held to the same per-payment cap, period budget, allowlist and expiry as the agent, and the owner can revoke or freeze at once. The vault itself is never exposed.
+- **Revocation voids old signatures.** Every signed payment carries the session epoch; revoking or re-granting bumps it, so signatures harvested before a migration can't be replayed after it.
+- **Next:** native ML-DSA verification of agent signatures inside SpendShield once QDay exposes a verifier on chain.
+
+## Feedback for the QDay team
+
+Things we ran into while building, shared to help the ecosystem:
+
+- The public RPC (`rpc-test.qday.info`) occasionally resets connections (`os error 54`); a retry always worked. MetaMask briefly showed "Unable to connect to QDay Aevum Testnet" at the same times.
+- `https://wiki.qday.info/Knowledge/reference/contracts`, linked from the developer page, returns a 404.
+- Contract verification on the explorer isn't available yet, so judges can't read verified source on chain; we link the exact commit instead.
+- The developer page lists agent wallets, session keys and a stablecoin paymaster as live, but without addresses or docs; the starter kit says they aren't supported for this challenge. A short "what's usable today" table would save builders time.
+- `eth_getLogs` is limited to 1,000 blocks; the starter kit's `getLogsChunked` handles it well. Worth a line in the main docs.
+
 ## Known limits / roadmap
 
-- The merchant API keeps quotes in memory (one server process). Production would use Redis or a database.
-- Budgets are per agent; a shared budget across a team of agents is a natural next step.
+- Testnet only, test tokens only. The planned fee is not implemented.
+- The shop's double-redeem guard is per server instance; across instances a paid quote could be redeemed again until it expires (30 minutes). SpendShield itself never accepts the same payment twice.
+- The Telegram bot runs as a single process; production would host it with persistent storage.
+- Budgets are per agent; shared budgets across a team of agents, per-merchant caps and spending categories are next.
 - Contract verification on the Aevum explorer isn't available yet; the source is in this repo at the deployed commit.
-- Next: an MCP tool so any LLM agent can call `check`/`pay` directly; per-merchant caps; spending categories.
 
 ## Credits and license
 
