@@ -1,7 +1,8 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
-import { createPublicClient, formatUnits, getAbiItem, http, isAddress, isHash, parseEventLogs, parseUnits, type Address, type Hex, type PublicClient } from "viem";
-import { erc20Abi, getLogsChunked, spendShieldAbi, TUSD8_ADDRESS, TUSD8_DECIMALS } from "@aevum-kit/aevum";
+import { createPublicClient, formatUnits, http, isAddress, isHash, parseEventLogs, parseUnits, type Address, type Hex, type PublicClient } from "viem";
+import { erc20Abi, links, spendShieldAbi, TUSD8_ADDRESS, TUSD8_DECIMALS } from "@aevum-kit/aevum";
+import { getShieldLogs } from "@/lib/shieldLogs";
 import { defaultNetwork, networkByChainId, type Network } from "@/lib/env";
 
 /**
@@ -136,17 +137,15 @@ async function fetchWeather() {
 }
 
 async function buildReport({ net, client }: Ctx) {
-  const head = await client.getBlockNumber();
-  // Everything since SpendShield was deployed, capped at 50k blocks (50 log requests) to keep it quick.
-  const maxWindow = 50_000n;
-  const floor = head > maxWindow ? head - maxWindow : 0n;
-  const from = net.shieldBlock !== undefined && net.shieldBlock > floor ? net.shieldBlock : floor;
+  // Everything since SpendShield was deployed: explorer first, newest blocks from the chain.
+  const from = net.shieldBlock ?? 0n;
   const token = (net.key === "local" ? undefined : TUSD8_ADDRESS) as Address | undefined;
-  const [logs, supply, tvl] = await Promise.all([
-    getLogsChunked(client, { address: net.shield!, event: getAbiItem({ abi: spendShieldAbi, name: "AgentPaid" }), fromBlock: from, toBlock: head }),
+  const [{ head, events }, supply, tvl] = await Promise.all([
+    getShieldLogs(client, net.shield!, from, net.hasExplorer ? links.explorer : undefined),
     token ? client.readContract({ address: token, abi: [...erc20Abi, { type: "function", name: "totalSupply", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }] as const, functionName: "totalSupply" }) : Promise.resolve(0n),
     token ? client.readContract({ address: token, abi: erc20Abi, functionName: "balanceOf", args: [net.shield!] }) : Promise.resolve(0n),
   ]);
+  const logs = events.filter((e) => e.eventName === "AgentPaid") as Extract<(typeof events)[number], { eventName: "AgentPaid" }>[];
   const byMerchant = new Map<string, bigint>();
   let volume = 0n;
   for (const l of logs) {

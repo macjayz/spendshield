@@ -1,9 +1,10 @@
 "use client";
 
-import { addressUrl, erc20Abi, getLogsChunked, PERIODS, spendShieldAbi, TUSD8_ADDRESS, txUrl } from "@aevum-kit/aevum";
+import { addressUrl, erc20Abi, links, PERIODS, spendShieldAbi, TUSD8_ADDRESS, txUrl } from "@aevum-kit/aevum";
+import { getShieldLogs } from "@/lib/shieldLogs";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { formatUnits, getAbiItem, isAddress, parseUnits, type Address, type Hash, type PublicClient } from "viem";
+import { formatUnits, isAddress, parseUnits, type Address, type Hash, type PublicClient } from "viem";
 import { useAccount, useConfig, usePublicClient, useReadContract } from "wagmi";
 import { readContract, simulateContract, waitForTransactionReceipt, writeContract } from "wagmi/actions";
 import { explain } from "@/lib/errors";
@@ -13,7 +14,6 @@ import { short } from "@/lib/order";
 const DECIMALS = 6;
 const fmt = (v: bigint | undefined) => (v === undefined ? "…" : Number(formatUnits(v, DECIMALS)).toLocaleString("en-US", { maximumFractionDigits: 6 }));
 const STATUS = ["—", "Pending", "Approved", "Rejected"] as const;
-const SCAN_BLOCKS = 20_000n;
 
 export default function ShieldPage() {
   const { net } = useNetwork();
@@ -42,13 +42,11 @@ export default function ShieldPage() {
     enabled: Boolean(client && shield),
     refetchInterval: 20_000,
     queryFn: async () => {
-      const head = await client!.getBlockNumber();
-      const floor = head > 50_000n ? head - 50_000n : 0n;
-      const from = net.shieldBlock !== undefined && net.shieldBlock > floor ? net.shieldBlock : floor;
-      const [paid, tvl] = await Promise.all([
-        getLogsChunked(client!, { address: shield!, event: getAbiItem({ abi: spendShieldAbi, name: "AgentPaid" }), fromBlock: from, toBlock: head }),
+      const [{ events }, tvl] = await Promise.all([
+        getShieldLogs(client!, shield!, net.shieldBlock ?? 0n, net.hasExplorer ? links.explorer : undefined),
         client!.readContract({ address: tokenAddr, abi: erc20Abi, functionName: "balanceOf", args: [shield!] }),
       ]);
+      const paid = events.filter((e) => e.eventName === "AgentPaid") as Extract<(typeof events)[number], { eventName: "AgentPaid" }>[];
       const volume = paid.reduce((sum, l) => sum + (l.args.amount ?? 0n), 0n);
       return {
         tvl,
@@ -66,13 +64,15 @@ export default function ShieldPage() {
     enabled: Boolean(client && ready),
     refetchInterval: 15_000,
     queryFn: async () => {
-      const head = await client!.getBlockNumber();
-      let from = head > SCAN_BLOCKS ? head - SCAN_BLOCKS : 0n;
-      if (net.shieldBlock !== undefined && net.shieldBlock > from) from = net.shieldBlock;
-      const range = { address: shield!, args: { owner: me }, fromBlock: from, toBlock: head };
-      const grants = await getLogsChunked(client!, { ...range, event: getAbiItem({ abi: spendShieldAbi, name: "SessionGranted" }) });
-      const asks = await getLogsChunked(client!, { ...range, event: getAbiItem({ abi: spendShieldAbi, name: "ApprovalRequested" }) });
-      const paid = await getLogsChunked(client!, { ...range, event: getAbiItem({ abi: spendShieldAbi, name: "AgentPaid" }) });
+      // Everything since SpendShield was deployed (explorer + newest blocks from the chain).
+      const from = net.shieldBlock ?? 0n;
+      const { head, events } = await getShieldLogs(client!, shield!, from, net.hasExplorer ? links.explorer : undefined);
+      type Ev = (typeof events)[number];
+      const mine = <N extends Ev["eventName"]>(name: N) =>
+        events.filter((e) => e.eventName === name && (e.args as { owner?: string }).owner?.toLowerCase() === me!.toLowerCase()) as Extract<Ev, { eventName: N }>[];
+      const grants = mine("SessionGranted");
+      const asks = mine("ApprovalRequested");
+      const paid = mine("AgentPaid");
 
       const agents = [...new Set(grants.map((g) => g.args.agent as Address))];
       const sessions = await Promise.all(
