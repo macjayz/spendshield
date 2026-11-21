@@ -1,0 +1,233 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:02.230
+We're going to try to hack our own agents
+
+00:00:02.230 --> 00:00:03.560
+by ourselves.
+
+00:00:03.560 --> 00:00:06.080
+I'm going to make the agent to send money
+
+00:00:06.080 --> 00:00:07.040
+to an attacker.
+
+00:00:07.040 --> 00:00:09.580
+And then we'll see how our smart contract
+
+00:00:09.580 --> 00:00:10.560
+handles it.
+
+00:00:10.560 --> 00:00:14.200
+So now the question is, what happens if
+
+00:00:14.200 --> 00:00:19.880
+you have a bug in your program
+
+00:00:19.880 --> 00:00:23.480
+or your bot has a bug, or there's an
+
+00:00:23.480 --> 00:00:25.320
+injection, maybe prompt injection,
+
+00:00:25.320 --> 00:00:27.590
+and then it drains everything you have
+
+00:00:27.590 --> 00:00:29.000
+inside your wallet?
+
+00:00:29.000 --> 00:00:33.070
+So I give my agent a budget that's at
+
+00:00:33.070 --> 00:00:35.800
+most 0.1 per payment
+
+00:00:35.800 --> 00:00:38.640
+and then 0.5 per day.
+
+00:00:38.640 --> 00:00:41.150
+So only this can be able to be used to
+
+00:00:41.150 --> 00:00:43.960
+shop and then in the experience in 70s.
+
+00:00:43.960 --> 00:00:46.190
+So now this limits live in the smart
+
+00:00:46.190 --> 00:00:48.800
+contract, not in the website
+
+00:00:48.800 --> 00:00:49.800
+and not in the AI.
+
+00:00:49.800 --> 00:00:53.410
+So if the agent is hacked now, it does
+
+00:00:53.410 --> 00:00:55.000
+not affect it.
+
+00:00:55.000 --> 00:00:58.610
+So this actually functions based on the
+
+00:00:58.610 --> 00:01:00.520
+SpendShield tools only.
+
+00:01:00.520 --> 00:01:03.110
+And so now the agent holds no money and
+
+00:01:03.110 --> 00:01:03.840
+no gas.
+
+00:01:03.840 --> 00:01:07.660
+So it only signs and then relates the
+
+00:01:07.660 --> 00:01:10.600
+same, the reliance and the transaction.
+
+00:01:10.600 --> 00:01:13.320
+So they're going to try to hack that real
+
+00:01:13.320 --> 00:01:13.800
+agent.
+
+00:01:13.800 --> 00:01:16.520
+And then we're going to put it in, that's
+
+00:01:16.520 --> 00:01:17.600
+in red-team mode.
+
+00:01:17.600 --> 00:01:19.630
+We're going to tell the agent to be
+
+00:01:19.630 --> 00:01:20.800
+anything it reads.
+
+00:01:20.800 --> 00:01:25.720
+So we can see the amount.
+
+00:01:25.720 --> 00:01:27.420
+The agent is trying to send to the
+
+00:01:27.420 --> 00:01:28.280
+attacker here.
+
+00:01:28.280 --> 00:01:30.080
+So now it has been blocked.
+
+00:01:30.080 --> 00:01:32.560
+As you can see, it has been blocked by
+
+00:01:32.560 --> 00:01:34.920
+SpendShield here.
+
+00:01:34.920 --> 00:01:36.440
+It has blocked the transaction.
+
+00:01:36.440 --> 00:01:38.080
+It has tried again for the second time
+
+00:01:38.080 --> 00:01:40.600
+and the transaction was also blocked here,
+
+00:01:40.600 --> 00:01:41.520
+if you notice.
+
+00:01:41.520 --> 00:01:47.760
+So now I've received a message here
+
+00:01:47.760 --> 00:01:50.440
+telling me to review requests
+
+00:01:50.440 --> 00:01:52.280
+from the bot.
+
+00:01:52.280 --> 00:01:55.420
+So even when it's been hacked, we are
+
+00:01:55.420 --> 00:01:57.680
+able to reject so nobody can be able to
+
+00:01:57.680 --> 00:01:58.760
+spend directly
+
+00:01:58.760 --> 00:01:59.760
+from the bot.
+
+00:01:59.760 --> 00:02:01.990
+So you can see that the transaction field
+
+00:02:01.990 --> 00:02:03.920
+here on the blockchain explorer.
+
+00:02:03.920 --> 00:02:06.260
+So it means that's actually been blocked
+
+00:02:06.260 --> 00:02:08.400
+accurately the way we want it now.
+
+00:02:08.400 --> 00:02:10.000
+So if everything ever goes wrong, one
+
+00:02:10.000 --> 00:02:11.160
+click freezes every agent.
+
+00:02:11.160 --> 00:02:13.390
+So we're going to go back to three school
+
+00:02:13.390 --> 00:02:14.360
+agents here.
+
+00:02:14.360 --> 00:02:20.360
+So that's like the kill switch.
+
+00:02:20.360 --> 00:02:21.960
+So now the agent tries to buy something
+
+00:02:21.960 --> 00:02:23.240
+and then it refused instant.
+
+00:02:23.240 --> 00:02:25.080
+The owner froze all agents spending.
+
+00:02:25.080 --> 00:02:27.310
+So one more thing, QDay is moving to
+
+00:02:27.310 --> 00:02:28.480
+post-quantum safety.
+
+00:02:28.480 --> 00:02:30.980
+So even if someone breaks an agent's key
+
+00:02:30.980 --> 00:02:33.320
+one day, they can only spend 50 cents a
+
+00:02:33.320 --> 00:02:33.720
+day.
+
+00:02:33.720 --> 00:02:36.080
+And I can stop them with my phone.
+
+00:02:36.080 --> 00:02:39.070
+So shops that sell data to agents like
+
+00:02:39.070 --> 00:02:42.150
+the one in my demo piece was just small
+
+00:02:42.150 --> 00:02:42.960
+fee pass
+
+00:02:42.960 --> 00:02:43.960
+here.
+
+00:02:43.960 --> 00:02:46.520
+A company's running many agents give each
+
+00:02:46.520 --> 00:02:48.720
+one its own budget and gets alerts.
+
+00:02:48.720 --> 00:02:52.330
+So basically you can give your agents a
+
+00:02:52.330 --> 00:02:54.680
+budget not your wallet.
+

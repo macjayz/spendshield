@@ -1,0 +1,788 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:07.830
+So it's really fascinating now to know
+
+00:00:07.830 --> 00:00:09.920
+that AI agents are starting to pay for
+
+00:00:09.920 --> 00:00:10.240
+things on
+
+00:00:10.240 --> 00:00:11.240
+their own.
+
+00:00:11.240 --> 00:00:14.600
+They can buy data, APIs and the rest now.
+
+00:00:14.600 --> 00:00:19.170
+So now the question is what happens if
+
+00:00:19.170 --> 00:00:23.590
+you have a bug in your program or your
+
+00:00:23.590 --> 00:00:24.600
+bot has
+
+00:00:24.600 --> 00:00:27.100
+a bug or there's an injection, maybe
+
+00:00:27.100 --> 00:00:29.520
+prompt injection and then it drains
+
+00:00:29.520 --> 00:00:30.640
+everything you
+
+00:00:30.640 --> 00:00:32.760
+have inside your wallet.
+
+00:00:32.760 --> 00:00:36.310
+So today we are going to learn how we are
+
+00:00:36.310 --> 00:00:40.200
+going to handle situations like that.
+
+00:00:40.200 --> 00:00:43.360
+So I was working on projects relating to
+
+00:00:43.360 --> 00:00:46.410
+this recently and then this got my
+
+00:00:46.410 --> 00:00:47.080
+attention and
+
+00:00:47.080 --> 00:00:49.160
+I decided to work on it too.
+
+00:00:49.160 --> 00:00:51.190
+So we are going to describe what happens
+
+00:00:51.190 --> 00:00:51.560
+now.
+
+00:00:51.560 --> 00:00:53.640
+We are going to try to hack our own
+
+00:00:53.640 --> 00:00:56.210
+agents by ourselves, we are going to make
+
+00:00:56.210 --> 00:00:56.760
+the agent
+
+00:00:56.760 --> 00:00:59.210
+to send money to an attacker and then we
+
+00:00:59.210 --> 00:01:01.770
+will see how our smart contract handles
+
+00:01:01.770 --> 00:01:02.240
+it.
+
+00:01:02.240 --> 00:01:05.850
+So as you can see here, these are the
+
+00:01:05.850 --> 00:01:09.850
+transactions directly from the QDay test
+
+00:01:09.850 --> 00:01:11.760
+nets, that's the
+
+00:01:11.760 --> 00:01:13.320
+Aevum testnet.
+
+00:01:13.320 --> 00:01:16.390
+So everything is displayed here, you can
+
+00:01:16.390 --> 00:01:19.320
+verify it's on chain directly here.
+
+00:01:19.320 --> 00:01:22.750
+So I'm going to try to connect my wallet
+
+00:01:22.750 --> 00:01:23.580
+here.
+
+00:01:23.580 --> 00:01:27.860
+So let's see, MetaMask, MetaMask is flagging,
+
+00:01:27.860 --> 00:01:30.930
+I used to myself and then it's really
+
+00:01:30.930 --> 00:01:31.640
+flagging
+
+00:01:31.640 --> 00:01:33.320
+the domain.
+
+00:01:33.320 --> 00:01:37.870
+So I'm going to try to connect my wallet
+
+00:01:37.870 --> 00:01:41.570
+so as you can see now my wallet is
+
+00:01:41.570 --> 00:01:43.000
+connected.
+
+00:01:43.000 --> 00:01:51.400
+So my wallet is connected right?
+
+00:01:51.400 --> 00:01:53.640
+So now I'm going to try to send to
+
+00:01:53.640 --> 00:01:56.480
+deposit one dollar into the vault.
+
+00:01:56.480 --> 00:02:00.080
+So notice something, so if you notice
+
+00:02:00.080 --> 00:02:03.790
+that what I'm sending now is exactly the
+
+00:02:03.790 --> 00:02:04.800
+approved
+
+00:02:04.800 --> 00:02:07.060
+amount, it does not spend unlimited
+
+00:02:07.060 --> 00:02:07.760
+amount.
+
+00:02:07.760 --> 00:02:10.440
+So the vault cannot take more than it's
+
+00:02:10.440 --> 00:02:11.880
+supposed to take.
+
+00:02:11.880 --> 00:02:18.520
+So we're going to allow it, so I'm going
+
+00:02:18.520 --> 00:02:24.980
+to allow it, all right, transaction
+
+00:02:24.980 --> 00:02:29.680
+confirmed.
+
+00:02:29.680 --> 00:02:32.560
+So here deposit has worked, now if you
+
+00:02:32.560 --> 00:02:35.520
+notice here it has gone to the vault.
+
+00:02:35.520 --> 00:02:37.990
+So now we are going to scroll down and
+
+00:02:37.990 --> 00:02:40.280
+then we're going to put some agent
+
+00:02:40.280 --> 00:02:41.280
+address here
+
+00:02:41.280 --> 00:02:47.510
+already have an agent address here and
+
+00:02:47.510 --> 00:02:53.630
+then I'll fill in the merchant here and put
+
+00:02:53.630 --> 00:02:56.400
+merchant.
+
+00:02:56.400 --> 00:03:01.160
+So if you notice here, right, this
+
+00:03:01.160 --> 00:03:06.570
+maximum payment, so now I give my agent a
+
+00:03:06.570 --> 00:03:07.960
+budget that's
+
+00:03:07.960 --> 00:03:13.110
+at most 0.1 per payment and then 0.5 per
+
+00:03:13.110 --> 00:03:13.840
+day.
+
+00:03:13.840 --> 00:03:16.350
+So only this can be able to be used to
+
+00:03:16.350 --> 00:03:19.200
+shop and then it expires in 7 days.
+
+00:03:19.200 --> 00:03:22.260
+So now I'm going to grant session here,
+
+00:03:22.260 --> 00:03:25.410
+okay, so here is the most important
+
+00:03:25.410 --> 00:03:26.040
+decision in
+
+00:03:26.040 --> 00:03:27.480
+this whole project.
+
+00:03:27.480 --> 00:03:29.650
+Now this limits live in the smart
+
+00:03:29.650 --> 00:03:32.310
+contract, not in the website and not in
+
+00:03:32.310 --> 00:03:33.040
+the AI.
+
+00:03:33.040 --> 00:03:36.040
+So if the agent is hacked now, it does
+
+00:03:36.040 --> 00:03:38.200
+not affect it, right?
+
+00:03:38.200 --> 00:03:43.990
+So we're going to confirm this, MetaMask
+
+00:03:43.990 --> 00:03:49.720
+are making this very difficult for us,
+
+00:03:49.720 --> 00:03:50.880
+okay.
+
+00:03:50.880 --> 00:03:55.220
+So now it's done, takes little time to
+
+00:03:55.220 --> 00:03:56.640
+display.
+
+00:03:56.640 --> 00:04:00.300
+So after granting access, now I'm going
+
+00:04:00.300 --> 00:04:03.510
+to go into my command prompt and it's
+
+00:04:03.510 --> 00:04:04.400
+already
+
+00:04:04.400 --> 00:04:07.800
+running the agent.
+
+00:04:07.800 --> 00:04:18.440
+So we're going to type.
+
+00:04:18.440 --> 00:04:22.840
+So now this is the real agent now, so
+
+00:04:22.840 --> 00:04:28.080
+this is the Claude agent.
+
+00:04:28.080 --> 00:04:31.080
+So this actually functions based on the
+
+00:04:31.080 --> 00:04:33.160
+SpendShield tools only.
+
+00:04:33.160 --> 00:04:36.260
+I'm not using the general tools on every
+
+00:04:36.260 --> 00:04:39.500
+agent tools on it's just specifically for
+
+00:04:39.500 --> 00:04:40.160
+this,
+
+00:04:40.160 --> 00:04:42.040
+for this SpendShield.
+
+00:04:42.040 --> 00:04:43.040
+So this is the code.
+
+00:04:43.040 --> 00:04:44.880
+Now, if you notice that the code has
+
+00:04:44.880 --> 00:04:46.850
+displayed, now this is the code it acts
+
+00:04:46.850 --> 00:04:47.840
+for the shopping
+
+00:04:47.840 --> 00:04:48.700
+data to get the price quote and then HTTP
+
+00:04:48.700 --> 00:04:49.000
+for to payment requests was settled on
+
+00:04:49.000 --> 00:04:57.040
+everyone.
+
+00:04:57.040 --> 00:05:00.050
+So that's it and then the SpendShield
+
+00:05:00.050 --> 00:05:01.600
+now shows okay.
+
+00:05:01.600 --> 00:05:03.700
+So before paying now it asks the contract
+
+00:05:03.700 --> 00:05:05.240
+if the payment is allowed.
+
+00:05:05.240 --> 00:05:07.240
+So that checks it.
+
+00:05:07.240 --> 00:05:10.120
+So it checks it for free though and it
+
+00:05:10.120 --> 00:05:13.470
+never with any gas or any payment that
+
+00:05:13.470 --> 00:05:14.280
+will fill.
+
+00:05:14.280 --> 00:05:17.490
+So this is it and then it has speeds now
+
+00:05:17.490 --> 00:05:19.940
+here, it pays the agent.
+
+00:05:19.940 --> 00:05:23.140
+So now the agent holds no money and no
+
+00:05:23.140 --> 00:05:26.780
+gas, so it only signs and then it relays
+
+00:05:26.780 --> 00:05:27.320
+the same
+
+00:05:27.320 --> 00:05:29.920
+they really are sending transaction.
+
+00:05:29.920 --> 00:05:33.940
+So the data is now good, now the data is
+
+00:05:33.940 --> 00:05:34.880
+life.
+
+00:05:34.880 --> 00:05:41.160
+So if you notice here it has sent me an
+
+00:05:41.160 --> 00:05:46.580
+alerts here, if you did alerts, the agent
+
+00:05:46.580 --> 00:05:46.880
+has sent
+
+00:05:46.880 --> 00:05:48.800
+me a lot for me to confirm here.
+
+00:05:48.800 --> 00:05:50.690
+All right, so now since everything has
+
+00:05:50.690 --> 00:05:52.500
+worked, we are going to try to hack the
+
+00:05:52.500 --> 00:05:53.160
+agents, the
+
+00:05:53.160 --> 00:05:55.000
+real agents now, since we already used
+
+00:05:55.000 --> 00:05:56.350
+the real agent and it displayed
+
+00:05:56.350 --> 00:05:57.120
+everything.
+
+00:05:57.120 --> 00:05:59.510
+We're going to try to hack that real
+
+00:05:59.510 --> 00:06:02.150
+agent and then we're going to fill it in
+
+00:06:02.150 --> 00:06:02.760
+that's
+
+00:06:02.760 --> 00:06:04.990
+in red-team mode, we're going to tell the
+
+00:06:04.990 --> 00:06:07.120
+agent to obey anything it reads.
+
+00:06:07.120 --> 00:06:09.420
+So we are going to we are going to make
+
+00:06:09.420 --> 00:06:11.440
+it look like it's attacked.
+
+00:06:11.440 --> 00:06:15.310
+So we're going to go back to our command
+
+00:06:15.310 --> 00:06:23.010
+prompt and then we'll go on to the real
+
+00:06:23.010 --> 00:06:29.040
+agent now.
+
+00:06:29.040 --> 00:06:29.640
+So now, as you can see in red team, this
+
+00:06:29.640 --> 00:06:48.670
+clip describes what happens to the agents
+
+00:06:48.670 --> 00:06:49.440
+if it's
+
+00:06:49.440 --> 00:06:50.440
+hacked.
+
+00:06:50.440 --> 00:06:53.640
+Now, if you see, we're going to wait for
+
+00:06:53.640 --> 00:06:55.240
+the exactly now.
+
+00:06:55.240 --> 00:06:58.220
+So the quotes are already reading now pay
+
+00:06:58.220 --> 00:06:59.720
+much chance now.
+
+00:06:59.720 --> 00:07:03.370
+Okay, so we can see the amount, the agent
+
+00:07:03.370 --> 00:07:06.620
+is trying to send to the attacker here
+
+00:07:06.620 --> 00:07:07.000
+and
+
+00:07:07.000 --> 00:07:11.590
+everything is displaying so, okay, so now
+
+00:07:11.590 --> 00:07:16.520
+it's trying to send 4.5 now to the agent,
+
+00:07:16.520 --> 00:07:18.000
+right?
+
+00:07:18.000 --> 00:07:22.060
+And immediately that happened as you can
+
+00:07:22.060 --> 00:07:26.240
+see that that sent me notification here,
+
+00:07:26.240 --> 00:07:26.600
+my telegram.
+
+00:07:26.600 --> 00:07:29.050
+So now it has been blocked as you can see
+
+00:07:29.050 --> 00:07:31.810
+that it has been blocked by SpendShield
+
+00:07:31.810 --> 00:07:32.320
+here.
+
+00:07:32.320 --> 00:07:34.400
+It has blocked the transaction it has
+
+00:07:34.400 --> 00:07:36.640
+tried again for the second time and the
+
+00:07:36.640 --> 00:07:37.480
+transaction
+
+00:07:37.480 --> 00:07:39.880
+was also blocked here if you notice.
+
+00:07:39.880 --> 00:07:44.220
+So now I've received a message here
+
+00:07:44.220 --> 00:07:49.020
+telling me to review requests from the
+
+00:07:49.020 --> 00:07:50.240
+board.
+
+00:07:50.240 --> 00:07:55.640
+So this is what happens now.
+
+00:07:55.640 --> 00:07:58.160
+So we're going to try to review the
+
+00:07:58.160 --> 00:08:01.130
+requests here, okay, it takes us back
+
+00:08:01.130 --> 00:08:02.080
+directly to the
+
+00:08:02.080 --> 00:08:03.840
+where the request is.
+
+00:08:03.840 --> 00:08:06.050
+So now I'm going to reject it here,
+
+00:08:06.050 --> 00:08:09.000
+rejects, I'm going to approve this here.
+
+00:08:09.000 --> 00:08:11.840
+So as you can see that it's rejected here,
+
+00:08:11.840 --> 00:08:14.480
+it has displayed here transaction as we
+
+00:08:14.480 --> 00:08:14.840
+can
+
+00:08:14.840 --> 00:08:17.720
+reject it so everything is working well
+
+00:08:17.720 --> 00:08:18.280
+now.
+
+00:08:18.280 --> 00:08:20.960
+Even when it's been hacked, we're able to
+
+00:08:20.960 --> 00:08:23.260
+reject so nobody can be able to spend
+
+00:08:23.260 --> 00:08:24.000
+directly
+
+00:08:24.000 --> 00:08:25.000
+from the bot.
+
+00:08:25.000 --> 00:08:27.960
+So as you can see here from this blocked,
+
+00:08:27.960 --> 00:08:30.850
+we're going to check the transaction on
+
+00:08:30.850 --> 00:08:32.240
+the blockchain
+
+00:08:32.240 --> 00:08:33.240
+explorer here.
+
+00:08:33.240 --> 00:08:36.270
+We're going to copy go to the blockchain
+
+00:08:36.270 --> 00:08:39.400
+explorer and check the transaction.
+
+00:08:39.400 --> 00:08:41.480
+As you can see that the transaction field
+
+00:08:41.480 --> 00:08:43.320
+here on the blockchain explorer.
+
+00:08:43.320 --> 00:08:45.620
+So it means that's actually been blocked
+
+00:08:45.620 --> 00:08:47.520
+accurately the way we want it.
+
+00:08:47.520 --> 00:08:50.720
+Now we're going to go back.
+
+00:08:50.720 --> 00:08:52.840
+So we're going to go back to the website
+
+00:08:52.840 --> 00:08:54.970
+here and then we're going to freeze all
+
+00:08:54.970 --> 00:08:56.560
+agents.
+
+00:08:56.560 --> 00:08:58.160
+So if everything ever goes wrong, one
+
+00:08:58.160 --> 00:08:59.320
+click freezes every agent.
+
+00:08:59.320 --> 00:09:01.820
+So we're going to go back to freeze all
+
+00:09:01.820 --> 00:09:02.880
+agents here.
+
+00:09:02.880 --> 00:09:04.600
+So that's like the kill switch.
+
+00:09:04.600 --> 00:09:06.440
+We'll have to approve agent this frozen.
+
+00:09:06.440 --> 00:09:08.830
+So now we're going to confirm this on the
+
+00:09:08.830 --> 00:09:10.000
+terminal here.
+
+00:09:10.000 --> 00:09:16.200
+We're going to go back to annual task,
+
+00:09:16.200 --> 00:09:21.930
+let's see whether the agent tries to buy
+
+00:09:21.930 --> 00:09:23.680
+something
+
+00:09:23.680 --> 00:09:25.550
+and then it refused instant, the owner
+
+00:09:25.550 --> 00:09:27.040
+froze all agents spending.
+
+00:09:27.040 --> 00:09:28.950
+So we're able to freeze all these
+
+00:09:28.950 --> 00:09:30.080
+payments here.
+
+00:09:30.080 --> 00:09:32.330
+So why it's built this way is a question
+
+00:09:32.330 --> 00:09:33.960
+that someone might ask.
+
+00:09:33.960 --> 00:09:44.520
+We're going to go back to the top.
+
+00:09:44.520 --> 00:09:47.920
+So the project repo is here.
+
+00:09:47.920 --> 00:09:50.530
+So I'm just going to explain my design
+
+00:09:50.530 --> 00:09:51.480
+decision.
+
+00:09:51.480 --> 00:09:53.140
+This is why I decided to build it this
+
+00:09:53.140 --> 00:09:53.520
+way.
+
+00:09:53.520 --> 00:09:55.330
+So that's all the agents are checked in
+
+00:09:55.330 --> 00:09:56.880
+one place on the blockchain.
+
+00:09:56.880 --> 00:10:00.010
+The agent can check them for free before
+
+00:10:00.010 --> 00:10:00.920
+it pays.
+
+00:10:00.920 --> 00:10:03.040
+So the website, the AI and the blockchain
+
+00:10:03.040 --> 00:10:04.680
+always give the same answer.
+
+00:10:04.680 --> 00:10:07.880
+So when I remove an agent, anything it
+
+00:10:07.880 --> 00:10:11.000
+sends before, just stop working.
+
+00:10:11.000 --> 00:10:12.760
+So each payment can only happen once.
+
+00:10:12.760 --> 00:10:14.790
+That's the reason why I decided to build
+
+00:10:14.790 --> 00:10:15.680
+this this way.
+
+00:10:15.680 --> 00:10:19.340
+So if something is sent twice by mistake,
+
+00:10:19.340 --> 00:10:21.160
+you only pay once.
+
+00:10:21.160 --> 00:10:23.840
+And I wrote 34 tests, including random
+
+00:10:23.840 --> 00:10:26.480
+ones, just to make sure that an agent can
+
+00:10:26.480 --> 00:10:26.640
+never
+
+00:10:26.640 --> 00:10:29.810
+spend more than it has been budgeted to
+
+00:10:29.810 --> 00:10:30.440
+use.
+
+00:10:30.440 --> 00:10:34.680
+That's the reason why I decided to build
+
+00:10:34.680 --> 00:10:36.280
+it this way.
+
+00:10:36.280 --> 00:10:39.530
+So basically, you can give your agents a
+
+00:10:39.530 --> 00:10:41.880
+budget, not your wallet.
+
+00:10:41.880 --> 00:10:44.560
+So that's exactly what SpendShield does now.
+
+00:10:44.560 --> 00:10:48.160
+It protects your money from overspending.
+
+00:10:48.160 --> 00:10:50.550
+And then your agents can be able to spend
+
+00:10:50.550 --> 00:10:53.040
+a particular budget allocated to it.
+
+00:10:53.040 --> 00:10:55.440
+So that's it.
+
+00:10:55.440 --> 00:10:57.330
+It's one more thing, QDay is moving to
+
+00:10:57.330 --> 00:10:58.600
+post-quantum safety.
+
+00:10:58.600 --> 00:11:00.820
+So even if someone breaks an agent's key
+
+00:11:00.820 --> 00:11:03.240
+one day, they can only spend 50 cents a
+
+00:11:03.240 --> 00:11:03.760
+day.
+
+00:11:03.760 --> 00:11:06.200
+And I can stop them with my phone.
+
+00:11:06.200 --> 00:11:09.200
+So shops that sell data to agents like
+
+00:11:09.200 --> 00:11:12.400
+the one in my demo, pays us just small
+
+00:11:12.400 --> 00:11:12.840
+fee per
+
+00:11:12.840 --> 00:11:13.840
+sale.
+
+00:11:13.840 --> 00:11:16.400
+A company's running many agents give each
+
+00:11:16.400 --> 00:11:18.600
+one his own budget and gets alerts.
+
+00:11:18.600 --> 00:11:23.180
+So that's how it's done and any AI can
+
+00:11:23.180 --> 00:11:24.480
+use it.
+
+00:11:24.480 --> 00:11:31.000
+I connected Claude through MCP, it uses MCP.
+
+00:11:31.000 --> 00:11:31.600
+So that's it.
+

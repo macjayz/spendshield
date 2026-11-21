@@ -32,6 +32,7 @@ export default function DemoPage() {
           preload="metadata"
           style={{ display: "block", width: "100%", aspectRatio: "16 / 9", background: "#000" }}
         >
+          <track kind="captions" src="/spendshield-demo.vtt" srcLang="en" label="English" default />
           Your browser can&apos;t play this video. <a href="/spendshield-demo.mp4">Download it</a> instead.
         </video>
       </section>
@@ -68,6 +69,24 @@ export default function DemoPage() {
             Source on GitHub
           </a>
         </p>
+      </section>
+      <section className="card">
+        <h2>Full walkthrough · 11 min</h2>
+        <p className="sub">
+          Everything the short cut skips: connecting the wallet, the exact-amount deposit, granting the session, the AI agent&apos;s normal purchases,
+          the attack, the reject from Telegram, the failed transaction on the explorer, the kill switch, and why it&apos;s built this way.
+        </p>
+        <video
+          src="/spendshield-walkthrough.mp4"
+          controls
+          playsInline
+          preload="none"
+          poster="/spendshield-demo-poster.jpg"
+          style={{ display: "block", width: "100%", aspectRatio: "16 / 9", background: "#000", borderRadius: 12 }}
+        >
+          <track kind="captions" src="/spendshield-walkthrough.vtt" srcLang="en" label="English" default />
+          Your browser can&apos;t play this video. <a href="/spendshield-walkthrough.mp4">Download it</a> instead.
+        </video>
       </section>
     </main>
   );
