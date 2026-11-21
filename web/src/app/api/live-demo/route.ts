@@ -60,6 +60,7 @@ export type LiveStep = {
   title: string;
   detail?: string;
   tx?: string;
+  link?: { label: string; href: string };
 };
 
 export async function POST(req: Request) {
@@ -230,6 +231,7 @@ async function run({
     title: `Request #${id} is waiting for the owner`,
     detail: "Nothing moves unless the owner approves it with their own wallet. In the video, my phone buzzes on Telegram and I reject it.",
     tx: link(hash),
+    link: { label: `See request #${id} in the owner's console ↗`, href: `/shield?vault=${owner}#request-${id}` },
   });
 
   const left = await client.readContract({ address: shield, abi: spendShieldAbi, functionName: "remaining", args: [owner, agent.address] });

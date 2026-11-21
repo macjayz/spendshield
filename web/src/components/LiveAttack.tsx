@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-type Step = { id: string; status: "run" | "ok" | "blocked" | "info" | "error"; title: string; detail?: string; tx?: string };
+type Step = { id: string; status: "run" | "ok" | "blocked" | "info" | "error"; title: string; detail?: string; tx?: string; link?: { label: string; href: string } };
 
 const ICON: Record<Step["status"], string> = { run: "…", ok: "✓", blocked: "⛔", info: "!", error: "×" };
 
@@ -84,6 +84,11 @@ export function LiveAttack({ compact = false }: { compact?: boolean }) {
                 {s.tx && (
                   <a href={s.tx} target="_blank" rel="noreferrer" className="fine">
                     {s.status === "blocked" ? "See the failed transaction on the explorer ↗" : "See the transaction on the explorer ↗"}
+                  </a>
+                )}
+                {s.link && (
+                  <a href={s.link.href} target="_blank" rel="noreferrer" className="fine" style={{ display: "block", marginTop: 2 }}>
+                    {s.link.label}
                   </a>
                 )}
               </div>

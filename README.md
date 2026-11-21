@@ -153,7 +153,17 @@ Your phone buzzes when an agent needs you. The bot watches SpendShield's events 
 - 🙋 **an agent asks for approval**, with a *Review request #N* button that opens the console scrolled to that request
 - 💸 agent payments, ✅/❌ approvals and rejections, 🧊 freeze/unfreeze, 🔒 revoked agents
 
-In Telegram: `/watch 0xYourAddress`, `/unwatch`, `/list`, `/status` (vault balance and pending approvals). The bot only reads the chain; approving still takes the owner's wallet.
+In Telegram: `/watch 0xYourAddress`, `/unwatch`, `/list`, `/status` (vault balance and pending approvals, grouped by agent). The bot only reads the chain; approving still takes the owner's wallet.
+
+### Approval floods ("approval fatigue")
+
+A hijacked agent can't move money, but it could flood the owner with requests until one gets approved without a proper look. SpendShield already refuses a second request for the same payment, every request expires, and a frozen vault refuses new requests altogether. On top of that:
+
+- **Telegram groups floods.** After more than 3 requests from one agent in 10 minutes, the owner gets one ⚠️ warning, and the rest arrive as a single 🗂 summary (ids, total asked, how many shops) instead of one buzz each. Optional `DAILY_SUMMARY=09:00` adds one daily review of everything still waiting, grouped by agent.
+- **The console reviews by agent.** Each agent shows its open requests, a flood gets a warning banner, and *Reject all* clears one agent's requests (the wallet confirms each, since the contract rejects them one at a time), next to *Revoke agent*.
+- **Read-only vault view.** `/shield?vault=0x…` shows any vault's agents and requests without a wallet; only the owner's wallet can act. The live demo links its request there.
+
+This came from a reader's comment on our demo post. A hard on-chain cap on open requests per agent needs a contract change, so it's on the roadmap for the next SpendShield version.
 
 ```bash
 # TELEGRAM_BOT_TOKEN from @BotFather in examples/.env, then:
@@ -279,6 +289,8 @@ Copy `web/.env.example` to `web/.env.local` and `examples/.env.example` to `exam
 | `MERCHANT_API` | The shop's address, e.g. `https://spendshield-psi.vercel.app/api/paid` |
 | `TELEGRAM_BOT_TOKEN` | Optional. Your bot from @BotFather, for phone alerts |
 | `APP_URL` | Optional. Where the alert buttons open (default: the live app) |
+| `BURST_LIMIT`, `BURST_WINDOW_MIN` | Optional. More than `BURST_LIMIT` requests (default 3) from one agent within `BURST_WINDOW_MIN` minutes (default 10) are grouped into one summary |
+| `DAILY_SUMMARY` | Optional, e.g. `09:00` (your computer's time). One daily review per vault: pending requests by agent, and the day's payments |
 | `SMART_OWNER_KEY` | Only for `pnpm example smart-agent`. A test owner wallet with tUSD8 in its vault |
 | `SMART_AGENT_KEY`, `BUNDLER_URL` | Optional, for `smart-agent`. The key behind the smart account (default `AGENT_KEY`) and QDay's bundler (default `https://bundler.qday.info`) |
 | `ANTHROPIC_API_KEY` | Only for `pnpm example ai-agent`. `claude-agent` uses your Claude Code login instead |
@@ -350,6 +362,7 @@ Things we ran into while building, shared to help the ecosystem. The first three
 - The shop's double-redeem guard is per server instance; across instances a paid quote could be redeemed again until it expires (30 minutes). SpendShield itself never accepts the same payment twice.
 - The Telegram bot runs as a single process; production would host it with persistent storage.
 - Budgets are per agent; shared budgets across a team of agents, per-merchant caps and spending categories are next.
+- An on-chain cap on how many open approval requests one agent can have (today the flood defences are off-chain: grouped alerts, review by agent, reject all). It needs a contract upgrade.
 
 ## Credits and license
 

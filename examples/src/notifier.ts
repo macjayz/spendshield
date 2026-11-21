@@ -7,6 +7,12 @@
  *   ✅/❌ a request was approved or rejected
  *   🧊 agents were frozen or unfrozen, 🔒 an agent was revoked
  *
+ * Request floods are grouped. An agent that files more than BURST_LIMIT requests within BURST_WINDOW_MIN
+ * minutes gets one warning, and anything after that arrives as a single summary instead of one buzz
+ * per request, so a hijacked or looping agent can't wear the owner down with alerts.
+ * With DAILY_SUMMARY=HH:MM (your computer's time), every watched vault also gets one daily review:
+ * pending requests grouped by agent, and the day's payments.
+ *
  * In Telegram:  /watch 0xYourOwnerAddress   /unwatch 0x...   /list   /status
  *
  *   pnpm example notifier
@@ -26,6 +32,9 @@ const TOKEN = required("TELEGRAM_BOT_TOKEN");
 const shield = requiredAddress("SHIELD_ADDRESS");
 const APP_URL = (process.env.APP_URL?.trim() || "https://spendshield-psi.vercel.app").replace(/\/+$/, "");
 const POLL_MS = 5000;
+const BURST_LIMIT = Number(process.env.BURST_LIMIT ?? 3);
+const BURST_WINDOW_MS = Number(process.env.BURST_WINDOW_MIN ?? 10) * 60_000;
+const DAILY_SUMMARY = /^\d{1,2}:\d{2}$/.test(process.env.DAILY_SUMMARY?.trim() ?? "") ? process.env.DAILY_SUMMARY!.trim() : null;
 const DECIMALS = 6;
 const { client, chain } = await connect();
 const onAevum = chain.id === aevumTestnet.id;
@@ -40,6 +49,13 @@ interface State {
   lastBlock: string | null;
   updateOffset: number;
   subs: Record<string, string[]>; // chatId -> owner addresses (lowercase)
+  /** "owner|agent" -> times (ms) of that agent's recent requests, for flood grouping. */
+  recent?: Record<string, number[]>;
+  /** "owner|agent" -> requests held back during a flood, sent later as one summary. */
+  held?: Record<string, { since: number; ids: string[]; total: string; merchants: string[] }>;
+  /** owner -> payments seen since the last daily summary. */
+  day?: Record<string, { count: number; total: string }>;
+  lastSummaryDate?: string;
 }
 
 function load(): State {
@@ -50,6 +66,9 @@ function load(): State {
   return { shield, lastBlock: null, updateOffset: 0, subs: {} };
 }
 const state = load();
+state.recent ??= {};
+state.held ??= {};
+state.day ??= {};
 const save = () => writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
 
 function chatsFor(owner: string): string[] {
@@ -111,19 +130,36 @@ async function status(owner: Address) {
     client.readContract({ address: shield, abi: spendShieldAbi, functionName: "frozen", args: [owner] }),
     client.readContract({ address: shield, abi: spendShieldAbi, functionName: "requestCount" }),
   ]);
-  const pending: string[] = [];
-  const now = BigInt(Math.floor(Date.now() / 1000));
-  for (let id = count; id > 0n && id > count - 50n; id--) {
-    const q = await client.readContract({ address: shield, abi: spendShieldAbi, functionName: "requestOf", args: [id] });
-    if (q.owner.toLowerCase() === owner.toLowerCase() && q.status === 1 && q.expiresAt > now) pending.push(`#${id}: ${amt(q.amount)} to ${short(q.merchant)}`);
-  }
+  const pending = await pendingByAgent(owner, count);
   return [
     `<b>Vault ${short(owner)}</b>`,
     `Balance: ${amt(vault)}`,
     `Agents: ${frozen ? "🧊 frozen" : "live"}`,
-    pending.length ? `Pending approvals:\n${pending.join("\n")}` : "No pending approvals.",
+    pending.length ? `Pending approvals, by agent:\n${pending.map(describeGroup).join("\n")}` : "No pending approvals.",
   ].join("\n");
 }
+
+type Group = { agent: string; ids: bigint[]; total: bigint; merchants: Set<string> };
+
+/** Open requests for one owner, grouped by agent (newest 200 requests). */
+async function pendingByAgent(owner: Address, count?: bigint): Promise<Group[]> {
+  const n = count ?? (await client.readContract({ address: shield, abi: spendShieldAbi, functionName: "requestCount" }));
+  const now = BigInt(Math.floor(Date.now() / 1000));
+  const groups = new Map<string, Group>();
+  for (let id = n; id > 0n && id > n - 200n; id--) {
+    const q = await client.readContract({ address: shield, abi: spendShieldAbi, functionName: "requestOf", args: [id] });
+    if (q.owner.toLowerCase() !== owner.toLowerCase() || q.status !== 1 || q.expiresAt <= now) continue;
+    const g = groups.get(q.agent) ?? { agent: q.agent, ids: [], total: 0n, merchants: new Set<string>() };
+    g.ids.unshift(id);
+    g.total += q.amount;
+    g.merchants.add(q.merchant.toLowerCase());
+    groups.set(q.agent, g);
+  }
+  return [...groups.values()].sort((a, b) => b.ids.length - a.ids.length);
+}
+
+const describeGroup = (g: Group) =>
+  `• Agent <code>${short(g.agent)}</code>: ${g.ids.length} request${g.ids.length > 1 ? "s" : ""} (${g.ids.map((i) => `#${i}`).join(", ")}), ${amt(g.total)} in total, ${g.merchants.size} shop${g.merchants.size > 1 ? "s" : ""}${g.ids.length > BURST_LIMIT ? " ⚠️" : ""}`;
 
 async function handleCommand(chatId: string, text: string) {
   const [cmd, arg] = text.trim().split(/\s+/, 2);
@@ -190,22 +226,55 @@ async function pollChain() {
 
         for (const l of asks) {
           const { id, owner, agent, merchant, amount } = l.args;
-          for (const chat of chatsFor(owner!)) {
-            await send(
-              chat,
-              [
-                `🙋 <b>Approval needed: request #${id}</b>`,
-                `Agent <code>${short(agent!)}</code> wants to pay <b>${amt(amount!)}</b>`,
-                `to <code>${esc(merchant!)}</code>${txLink(l.transactionHash)}`,
-                "",
-                "It's over the agent's limits, so nothing moves until you decide. Check the merchant before approving.",
-              ].join("\n"),
-              { text: `Review request #${id}`, url: `${APP_URL}/shield#request-${id}` },
-            );
+          if (!chatsFor(owner!).length) continue;
+          const key = `${owner!.toLowerCase()}|${agent!.toLowerCase()}`;
+          const now = Date.now();
+          const times = (state.recent![key] = [...(state.recent![key] ?? []).filter((t) => now - t < BURST_WINDOW_MS), now]);
+
+          if (times.length <= BURST_LIMIT) {
+            for (const chat of chatsFor(owner!)) {
+              await send(
+                chat,
+                [
+                  `🙋 <b>Approval needed: request #${id}</b>`,
+                  `Agent <code>${short(agent!)}</code> wants to pay <b>${amt(amount!)}</b>`,
+                  `to <code>${esc(merchant!)}</code>${txLink(l.transactionHash)}`,
+                  "",
+                  "It's over the agent's limits, so nothing moves until you decide. Check the merchant before approving.",
+                ].join("\n"),
+                { text: `Review request #${id}`, url: `${APP_URL}/shield#request-${id}` },
+              );
+            }
+            continue;
+          }
+
+          // A flood: warn once, then hold the rest and send them as one summary.
+          const held = state.held![key];
+          if (!held) {
+            state.held![key] = { since: now, ids: [String(id)], total: String(amount!), merchants: [merchant!.toLowerCase()] };
+            for (const chat of chatsFor(owner!)) {
+              await send(
+                chat,
+                [
+                  `⚠️ <b>Agent <code>${short(agent!)}</code> filed ${times.length} requests in ${Math.round(BURST_WINDOW_MS / 60_000)} minutes</b>`,
+                  "That's unusual: it could be stuck in a loop, or hijacked and trying to wear you down.",
+                  "I'll group its next requests into one summary instead of messaging you for each.",
+                  "Review them together in the console, or revoke the agent there.",
+                ].join("\n"),
+                { text: "Review this agent's requests", url: `${APP_URL}/shield#agent-${agent}` },
+              );
+            }
+          } else {
+            held.ids.push(String(id));
+            held.total = String(BigInt(held.total) + amount!);
+            if (!held.merchants.includes(merchant!.toLowerCase())) held.merchants.push(merchant!.toLowerCase());
           }
         }
         for (const l of paid) {
           const { owner, agent, merchant, amount, spentInPeriod } = l.args;
+          const d = (state.day![owner!.toLowerCase()] ??= { count: 0, total: "0" });
+          d.count += 1;
+          d.total = String(BigInt(d.total) + amount!);
           for (const chat of chatsFor(owner!)) {
             await send(chat, `💸 Agent <code>${short(agent!)}</code> paid <b>${amt(amount!)}</b> to <code>${short(merchant!)}</code> (spent this period: ${amt(spentInPeriod!)})${txLink(l.transactionHash)}`);
           }
@@ -224,6 +293,8 @@ async function pollChain() {
         state.lastBlock = head.toString();
         save();
       }
+      await flushHeld();
+      await dailySummary();
     } catch (e) {
       console.error("[chain]", e instanceof Error ? e.message : e);
     }
@@ -231,7 +302,54 @@ async function pollChain() {
   }
 }
 
+/** Held-back flood requests go out as one summary once the burst window has passed. */
+async function flushHeld() {
+  const now = Date.now();
+  for (const [key, held] of Object.entries(state.held!)) {
+    if (now - held.since < BURST_WINDOW_MS) continue;
+    const [owner, agent] = key.split("|");
+    for (const chat of chatsFor(owner)) {
+      await send(
+        chat,
+        [
+          `🗂 <b>Agent <code>${short(agent)}</code>: ${held.ids.length} more request${held.ids.length > 1 ? "s" : ""}, grouped</b>`,
+          `${held.ids.map((i) => `#${i}`).join(", ")}: ${amt(BigInt(held.total))} in total, to ${held.merchants.length} shop${held.merchants.length > 1 ? "s" : ""}.`,
+          "Nothing moves until you decide. If you didn't expect these, reject them all or revoke the agent.",
+        ].join("\n"),
+        { text: "Review this agent's requests", url: `${APP_URL}/shield#agent-${agent}` },
+      );
+    }
+    delete state.held![key];
+    save();
+  }
+}
+
+/** Once a day at DAILY_SUMMARY (local time): pending requests by agent, and the day's payments. */
+async function dailySummary() {
+  if (!DAILY_SUMMARY) return;
+  const now = new Date();
+  const today = now.toLocaleDateString("en-CA");
+  const [h, m] = DAILY_SUMMARY.split(":").map(Number);
+  if (state.lastSummaryDate === today || now.getHours() * 60 + now.getMinutes() < h * 60 + m) return;
+  state.lastSummaryDate = today;
+  save();
+  const owners = [...new Set(Object.values(state.subs).flat())];
+  for (const owner of owners) {
+    const groups = await pendingByAgent(owner as Address);
+    const d = state.day![owner] ?? { count: 0, total: "0" };
+    const text = [
+      `📋 <b>Daily review for vault <code>${short(owner)}</code></b>`,
+      `Agent payments since the last review: ${d.count} (${amt(BigInt(d.total))}).`,
+      groups.length ? `Waiting for you:\n${groups.map(describeGroup).join("\n")}` : "Nothing is waiting for your approval.",
+    ].join("\n");
+    for (const chat of chatsFor(owner)) await send(chat, text, groups.length ? { text: "Review in the console", url: `${APP_URL}/shield` } : undefined);
+    state.day![owner] = { count: 0, total: "0" };
+  }
+  save();
+}
+
 const me = await tg<{ username: string }>("getMe", {});
 console.log(`🤖 @${me.username} is watching SpendShield ${shield} on chain ${chain.id}`);
 console.log(`   Open https://t.me/${me.username}, press Start, then send: /watch 0xYourOwnerAddress`);
+console.log(`   Floods: more than ${BURST_LIMIT} requests from one agent in ${BURST_WINDOW_MS / 60_000} min are grouped.${DAILY_SUMMARY ? ` Daily review at ${DAILY_SUMMARY}.` : ""}`);
 await Promise.all([pollCommands(), pollChain()]);

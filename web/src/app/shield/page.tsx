@@ -26,6 +26,17 @@ export default function ShieldPage() {
   const { address: me, isConnected, chainId: walletChain } = useAccount();
   const ready = Boolean(shield && me && isConnected && walletChain === chainId);
 
+  // /shield?vault=0x… shows any vault read-only (anyone can look; only the owner's wallet can act).
+  const [viewVault, setViewVault] = useState<Address | null>(null);
+  useEffect(() => {
+    const v = new URLSearchParams(window.location.search).get("vault");
+    setViewVault(v && isAddress(v) ? (v as Address) : null);
+  }, []);
+  const owner = (viewVault ?? me) as Address | undefined;
+  const readOnly = Boolean(viewVault && viewVault.toLowerCase() !== me?.toLowerCase());
+  const act = ready && !readOnly;
+  const canRead = Boolean(shield && owner && (ready || viewVault));
+
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ label: string; hash: Hash } | null>(null);
@@ -34,8 +45,8 @@ export default function ShieldPage() {
   const token = useReadContract({ address: shield, abi: spendShieldAbi, functionName: "token", chainId, query: { enabled: Boolean(shield) } });
   const tokenAddr = (token.data ?? TUSD8_ADDRESS) as Address;
   const wallet = useReadContract({ address: tokenAddr, abi: erc20Abi, functionName: "balanceOf", args: me ? [me] : undefined, chainId, query: { enabled: ready } });
-  const vault = useReadContract({ address: shield, abi: spendShieldAbi, functionName: "balanceOf", args: me ? [me] : undefined, chainId, query: { enabled: ready } });
-  const frozen = useReadContract({ address: shield, abi: spendShieldAbi, functionName: "frozen", args: me ? [me] : undefined, chainId, query: { enabled: ready } });
+  const vault = useReadContract({ address: shield, abi: spendShieldAbi, functionName: "balanceOf", args: owner ? [owner] : undefined, chainId, query: { enabled: canRead } });
+  const frozen = useReadContract({ address: shield, abi: spendShieldAbi, functionName: "frozen", args: owner ? [owner] : undefined, chainId, query: { enabled: canRead } });
 
   // Public, no wallet needed: what every vault's agents have done, so visitors see it working first.
   const network = useQuery({
@@ -61,8 +72,8 @@ export default function ShieldPage() {
   });
 
   const history = useQuery({
-    queryKey: ["shield-history", chainId, shield, me],
-    enabled: Boolean(client && ready),
+    queryKey: ["shield-history", chainId, shield, owner],
+    enabled: Boolean(client && canRead),
     refetchInterval: 15_000,
     queryFn: async () => {
       // Everything since SpendShield was deployed (explorer + newest blocks from the chain).
@@ -70,7 +81,7 @@ export default function ShieldPage() {
       const { head, events } = await getShieldLogs(client!, shield!, from, net.hasExplorer ? links.explorer : undefined);
       type Ev = (typeof events)[number];
       const mine = <N extends Ev["eventName"]>(name: N) =>
-        events.filter((e) => e.eventName === name && (e.args as { owner?: string }).owner?.toLowerCase() === me!.toLowerCase()) as Extract<Ev, { eventName: N }>[];
+        events.filter((e) => e.eventName === name && (e.args as { owner?: string }).owner?.toLowerCase() === owner!.toLowerCase()) as Extract<Ev, { eventName: N }>[];
       const grants = mine("SessionGranted");
       const asks = mine("ApprovalRequested");
       const paid = mine("AgentPaid");
@@ -79,8 +90,8 @@ export default function ShieldPage() {
       const sessions = await Promise.all(
         agents.map(async (agent) => {
           const [s, left] = await Promise.all([
-            client!.readContract({ address: shield!, abi: spendShieldAbi, functionName: "sessionOf", args: [me!, agent] }),
-            client!.readContract({ address: shield!, abi: spendShieldAbi, functionName: "remaining", args: [me!, agent] }),
+            client!.readContract({ address: shield!, abi: spendShieldAbi, functionName: "sessionOf", args: [owner!, agent] }),
+            client!.readContract({ address: shield!, abi: spendShieldAbi, functionName: "remaining", args: [owner!, agent] }),
           ]);
           return { agent, s, left };
         }),
@@ -101,16 +112,22 @@ export default function ShieldPage() {
   });
 
   // Links like /shield#request-3 (from the Telegram alert) scroll to that request once it has loaded.
+  // Links like /shield#agent-0x… (from a grouped Telegram alert) scroll to that agent's requests.
   const [focusId, setFocusId] = useState<string | null>(null);
+  const [focusAgent, setFocusAgent] = useState<string | null>(null);
   useEffect(() => {
-    const read = () => setFocusId(/^#request-(\d+)$/.exec(window.location.hash)?.[1] ?? null);
+    const read = () => {
+      setFocusId(/^#request-(\d+)$/.exec(window.location.hash)?.[1] ?? null);
+      setFocusAgent(/^#agent-(0x[0-9a-fA-F]{40})$/.exec(window.location.hash)?.[1]?.toLowerCase() ?? null);
+    };
     read();
     window.addEventListener("hashchange", read);
     return () => window.removeEventListener("hashchange", read);
   }, []);
   useEffect(() => {
     if (focusId && history.data) document.getElementById(`request-${focusId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [focusId, history.data]);
+    if (focusAgent && history.data) document.getElementById(`agent-${focusAgent}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [focusId, focusAgent, history.data]);
 
   function refresh() {
     void qc.invalidateQueries();
@@ -118,6 +135,7 @@ export default function ShieldPage() {
 
   /** Simulate (free, shows the revert reason), send, wait. */
   async function send(label: string, fn: () => Promise<Hash>) {
+    if (!act) return setError(readOnly ? "This is a read-only view of someone else's vault." : `Connect the owner's wallet on ${net.label} first.`);
     setBusy(label);
     setError(null);
     setDone(null);
@@ -138,6 +156,28 @@ export default function ShieldPage() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { request } = await simulateContract(config, { account: me!, address: shield!, abi: spendShieldAbi, functionName, args, chainId } as any);
     return writeContract(config, request);
+  }
+
+  /** Reject every open request from one agent. The contract has no batch reject, so the wallet confirms each one. */
+  async function rejectAll(agentAddr: Address, ids: bigint[]) {
+    if (!act) return setError(readOnly ? "This is a read-only view of someone else's vault." : `Connect the owner's wallet on ${net.label} first.`);
+    setError(null);
+    setDone(null);
+    try {
+      let last: Hash | undefined;
+      for (const [i, id] of ids.entries()) {
+        setBusy(`Reject request #${id} (${i + 1} of ${ids.length} from ${short(agentAddr)})`);
+        last = await call("rejectRequest", [id]);
+        const r = await waitForTransactionReceipt(config, { hash: last, chainId });
+        if (r.status !== "success") throw new Error(`Rejecting #${id} reverted.`);
+      }
+      if (last) setDone({ label: `Rejected ${ids.length} request${ids.length > 1 ? "s" : ""} from ${short(agentAddr)}`, hash: last });
+    } catch (e) {
+      setError(explainShield(e));
+    } finally {
+      setBusy(null);
+      refresh();
+    }
   }
 
   // ------------------------------------------------------------ forms
@@ -203,6 +243,26 @@ export default function ShieldPage() {
   }
 
   const h = history.data;
+  // Open requests grouped by agent, most first: a flood from one agent stands out, and can be cleared in one go.
+  const nowS = Date.now() / 1000;
+  const groups = h
+    ? [
+        ...h.requests
+          .filter(({ q }) => q.status === 1 && Number(q.expiresAt) > nowS)
+          .reduce((m, { id, q }) => {
+            const k = q.agent.toLowerCase();
+            const g = m.get(k) ?? { agent: q.agent as Address, ids: [] as bigint[], total: 0n, shops: new Set<string>() };
+            g.ids.push(id);
+            g.total += q.amount;
+            g.shops.add(q.merchant.toLowerCase());
+            return m.set(k, g);
+          }, new Map<string, { agent: Address; ids: bigint[]; total: bigint; shops: Set<string> }>())
+          .values(),
+      ].sort((a, b) => b.ids.length - a.ids.length)
+    : [];
+  const openFor = (a: string) => groups.find((g) => g.agent.toLowerCase() === a.toLowerCase())?.ids.length ?? 0;
+  const flooding = groups.filter((g) => g.ids.length > FLOOD_AT);
+  const sessionOf = (a: string) => h?.sessions.find((x) => x.agent.toLowerCase() === a.toLowerCase());
   return (
     <main className="shell stack">
       <div className="page-head">
@@ -281,7 +341,12 @@ export default function ShieldPage() {
         {network.error && <p className="fine">Couldn&apos;t read the chain: {(network.error as Error).message}</p>}
       </section>
 
-      {!ready && <div className="notice warn">Connect your wallet on {net.label} to manage your vault.</div>}
+      {readOnly && owner && (
+        <div className="notice info">
+          Read-only view of vault <code>{owner}</code>. Anyone can look; only the owner&apos;s wallet can approve, reject or revoke.
+        </div>
+      )}
+      {!ready && !readOnly && <div className="notice warn">Connect your wallet on {net.label} to manage your vault.</div>}
       {busy && <div className="notice warn" aria-live="polite">{busy}: confirm in your wallet, then wait for Aevum…</div>}
       {error && <div className="notice bad" aria-live="polite">{error}</div>}
       {done && (
@@ -321,16 +386,16 @@ export default function ShieldPage() {
           </label>
         </div>
         <div className="actions">
-          <button className="btn" disabled={!ready || !!busy || !(Number(amount) > 0)} onClick={deposit}>
+          <button className="btn" disabled={!act || !!busy || !(Number(amount) > 0)} onClick={deposit}>
             Deposit
           </button>
-          <button className="btn secondary" disabled={!ready || !!busy || !(Number(amount) > 0)} onClick={() => send("Withdraw", () => call("withdraw", [parseUnits(amount, DECIMALS), me!]))}>
+          <button className="btn secondary" disabled={!act || !!busy || !(Number(amount) > 0)} onClick={() => send("Withdraw", () => call("withdraw", [parseUnits(amount, DECIMALS), me!]))}>
             Withdraw
           </button>
           <button
             className={`btn ${frozen.data ? "" : "warn"}`}
             style={{ marginLeft: "auto" }}
-            disabled={!ready || !!busy}
+            disabled={!act || !!busy}
             onClick={() => send(frozen.data ? "Unfreeze" : "Freeze all agents", () => call("setFrozen", [!frozen.data]))}
           >
             {frozen.data ? "Unfreeze agents" : "Freeze all agents"}
@@ -377,7 +442,7 @@ export default function ShieldPage() {
         </div>
         {grantProblem && agent && <p className="fine" style={{ marginTop: 10 }}>{grantProblem}</p>}
         <div className="actions">
-          <button className="btn" disabled={!ready || !!busy || Boolean(grantProblem)} onClick={grant}>
+          <button className="btn" disabled={!act || !!busy || Boolean(grantProblem)} onClick={grant}>
             Grant session
           </button>
         </div>
@@ -400,6 +465,7 @@ export default function ShieldPage() {
                   <th>Spent this period</th>
                   <th className="right">Can still spend</th>
                   <th className="right">Lifetime</th>
+                  <th className="right">Open requests</th>
                   <th>Expires</th>
                   <th />
                 </tr>
@@ -427,9 +493,12 @@ export default function ShieldPage() {
                       </td>
                       <td className="right num">{fmt(left)}</td>
                       <td className="right num">{fmt(s.totalSpent)}</td>
+                      <td className="right num">
+                        {openFor(a) > FLOOD_AT ? <span className="tag bad">⚠ {openFor(a)}</span> : openFor(a)}
+                      </td>
                       <td className="fine">{new Date(Number(s.policy.expiresAt) * 1000).toLocaleString()}</td>
                       <td>
-                        {s.active && (
+                        {act && s.active && (
                           <button className="btn small warn" disabled={!!busy} onClick={() => send("Revoke agent", () => call("revokeSession", [a]))}>
                             Revoke
                           </button>
@@ -449,6 +518,58 @@ export default function ShieldPage() {
           <h2>Approval requests</h2>
           <p className="sub">When an agent wants to pay more than its cap, or a merchant you didn&apos;t list, it has to ask you first.</p>
         </div>
+        {flooding.map((g) => (
+          <div key={g.agent} className="notice warn" style={{ margin: "14px 20px 0" }}>
+            <strong>
+              Agent {short(g.agent)} has {g.ids.length} requests waiting.
+            </strong>
+            <span>
+              That&apos;s unusual. It could be stuck in a loop, or hijacked and trying to wear you down until you approve one without looking. Nothing
+              moves until you decide: reject them all, or revoke the agent.
+            </span>
+          </div>
+        ))}
+        {groups.length > 0 && (
+          <div style={{ padding: "14px 20px 0" }}>
+            <h3 style={{ fontSize: 15, marginBottom: 8 }}>Review by agent</h3>
+            <div className="table-wrap">
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>Agent</th>
+                    <th className="right">Waiting</th>
+                    <th className="right">Total asked</th>
+                    <th className="right">Shops</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {groups.map((g) => (
+                    <tr key={g.agent} id={`agent-${g.agent.toLowerCase()}`} className={focusAgent === g.agent.toLowerCase() ? "focus" : undefined}>
+                      <td className="mono">{short(g.agent)}</td>
+                      <td className="right num">{g.ids.length > FLOOD_AT ? <span className="tag bad">⚠ {g.ids.length}</span> : g.ids.length}</td>
+                      <td className="right num">{fmt(g.total)} tUSD8</td>
+                      <td className="right num">{g.shops.size}</td>
+                      <td style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <button className="btn small secondary" disabled={!act || !!busy} onClick={() => rejectAll(g.agent, g.ids)}>
+                          Reject all {g.ids.length}
+                        </button>
+                        {sessionOf(g.agent)?.s.active && act && (
+                          <button className="btn small warn" disabled={!act || !!busy} onClick={() => send("Revoke agent", () => call("revokeSession", [g.agent]))}>
+                            Revoke agent
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="fine" style={{ marginTop: 8 }}>
+              Reject all asks your wallet to confirm each request, because the contract rejects them one at a time.
+            </p>
+          </div>
+        )}
         {h && h.requests.length === 0 && <p className="empty">No requests.</p>}
         {h && h.requests.length > 0 && (
           <div className="table-wrap">
@@ -479,7 +600,7 @@ export default function ShieldPage() {
                       </td>
                       <td className="fine">{new Date(Number(q.expiresAt) * 1000).toLocaleTimeString()}</td>
                       <td style={{ display: "flex", gap: 8 }}>
-                        {pending && (
+                        {act && pending && (
                           <>
                             <button className="btn small" disabled={!!busy} onClick={() => send(`Approve request #${id}`, () => call("approveRequest", [id]))}>
                               Approve #{id.toString()} &amp; pay
@@ -547,6 +668,9 @@ export default function ShieldPage() {
     </main>
   );
 }
+
+/** More open requests than this from one agent is treated as a flood. Matches the Telegram bot's BURST_LIMIT default. */
+const FLOOD_AT = 3;
 
 function periodName(seconds: number) {
   return seconds === PERIODS.hour ? "hour" : seconds === PERIODS.day ? "day" : seconds === PERIODS.week ? "week" : `${seconds}s`;
