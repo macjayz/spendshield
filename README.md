@@ -130,7 +130,9 @@ The poisoned item lives in the shop route as `market-news`. Red-team mode replac
 
 ### The merchant API ([`web/src/app/api/paid/[resource]/route.ts`](web/src/app/api/paid/%5Bresource%5D/route.ts))
 
-An HTTP 402 paywall (the same shape as x402) that settles on Aevum. The server picks a random ref for each quote and only accepts an `AgentPaid` event from the configured SpendShield with that ref, its own address as merchant and at least the quoted amount, once. Approved escalations are redeemed with `X-Payment: request:<id>`.
+A small shop that sells data to AI agents and gets paid in tUSD8 on Aevum. It works like x402: ask for an item, get an HTTP 402 price quote, pay, ask again with the proof, get the data.
+
+Each quote carries a payment reference that the shop signs itself (an HMAC), with the item and an expiry inside. So the shop doesn't need a database and still works on Vercel, where every request can land on a different server. It only hands over data when it finds an `AgentPaid` event from our SpendShield, paid to the shop's own address, with a reference it signed, for at least the price. If the owner approved a bigger payment by hand, the agent shows `X-Payment: request:<id>` instead.
 
 ### The owner console ([`web/src/app/shield/page.tsx`](web/src/app/shield/page.tsx))
 
@@ -149,6 +151,19 @@ In Telegram: `/watch 0xYourAddress`, `/unwatch`, `/list`, `/status` (vault balan
 # TELEGRAM_BOT_TOKEN from @BotFather in examples/.env, then:
 pnpm example notifier
 ```
+
+### What it's built with
+
+| Part | Tools | Why this choice |
+|---|---|---|
+| Smart contract | Solidity 0.8.24, Foundry, OpenZeppelin 5.1 (`SafeERC20`, `EIP712`, `SignatureChecker`) | Aevum runs the Shanghai EVM, so the build is pinned to Shanghai and checked for newer opcodes. `SignatureChecker` lets agents be smart-contract wallets too. |
+| Token | tUSD8 on Aevum (USDC-style, 6 decimals) | Its EIP-3009 signed transfers give us gasless deposits. |
+| Website | Next.js 16, React 19, wagmi, RainbowKit, viem | Hosted on Vercel. Reads history from the Aevum explorer API in one call, with the RPC as a backup. |
+| AI agent | Claude (through Claude Code or the Messages API) | All of Claude's normal tools are switched off; it only gets SpendShield's five tools. |
+| Agent tools | Model Context Protocol (MCP) server, TypeScript | One config line plugs SpendShield into any MCP-capable AI. |
+| Alerts | Telegram Bot API | Read-only: it can tell you about a request, it can never approve one. |
+| Shop data | CoinGecko (prices), Open-Meteo (weather), Aevum chain data (report) | Real data, so the agent buys something real. |
+| Starting point | [Aevum Starter Kit](https://github.com/qday-io/aevum-starter-kit) (MIT, PQA Labs) | Chain config, ABIs, chunked log reader, relayer pattern. |
 
 ---
 
@@ -176,6 +191,8 @@ Everything below uses the live app and the deployed contract; you only need a br
 
 The shop's items return live data: BTC/ETH/USDC prices (CoinGecko), Hong Kong weather (Open-Meteo), and an agent-economy report computed from Aevum chain data. `market-news` carries the planted injection on purpose.
 
+**Heads-up about MetaMask:** MetaMask's automatic scanner may label this brand-new site as risky, because it's a fresh `vercel.app` address asking you to use a new contract that the Aevum explorer can't verify yet. Before you confirm anything, check that the contract is `0x0E9578a05BEc3D8BB21f0f4F8C00FF54eB3D7B2D`. All the code is in this repo.
+
 ## Run it locally (no funds needed)
 
 You need Node 22+, pnpm and Foundry.
@@ -201,6 +218,47 @@ make dev                   # http://localhost:3000/shield  → deposit, grant th
 make agent                 # the agent buys 3 items, then asks you to approve the expensive one
 TASKS=premium-report WAIT_FOR_APPROVAL=1 make agent   # approve it in the console, the agent finishes
 ```
+
+## Settings
+
+Copy `web/.env.example` to `web/.env.local` and `examples/.env.example` to `examples/.env`, then fill in what you need. Both files are git-ignored, so keys never end up in the repo.
+
+**Website (`web/.env.local`)**
+
+| Setting | What it does | Our value on Aevum |
+|---|---|---|
+| `NEXT_PUBLIC_NETWORKS` | Which chains the site offers: `aevum`, `fork` (local copy of Aevum), `local` (empty anvil). The first is the default. | `aevum` |
+| `NEXT_PUBLIC_SHIELD_AEVUM` | SpendShield address (also `_FORK`, `_LOCAL`) | `0x0E9578a05BEc3D8BB21f0f4F8C00FF54eB3D7B2D` |
+| `NEXT_PUBLIC_SHIELD_BLOCK_AEVUM` | Block it was deployed in; history is read from here | `3581556` |
+| `MERCHANT_ADDRESS` | *Server only.* The shop's address that gets paid | `0xbe888540d324898C81F391163156b593046abe47` |
+| `QUOTE_SECRET` | *Server only.* Signs the shop's payment references. Required in production; any long random string (`openssl rand -hex 32`) | set in Vercel, never shared |
+| `TRUSTED_IP_HEADER` | *Server only.* Real visitor IP header for rate limits | `x-vercel-forwarded-for` on Vercel |
+| `NEXT_PUBLIC_REPO_URL` | Where the GitHub link points | `https://github.com/macjayz/spendshield` |
+| `NEXT_PUBLIC_WC_PROJECT_ID` | Optional. Turns on WalletConnect for phone wallets | — |
+
+**Agent, tools and alerts (`examples/.env`)**
+
+| Setting | What it does |
+|---|---|
+| `RPC_URL` | Which chain to talk to. Aevum by default; `http://127.0.0.1:8555` for the local copy |
+| `SHIELD_ADDRESS` | The SpendShield contract |
+| `OWNER_ADDRESS` | Whose vault the agent spends from: the owner's **address**, never their key |
+| `AGENT_KEY` | The agent's own throwaway key. It holds no money; it only signs |
+| `RELAYER_KEY` | Optional. A throwaway wallet with a little tQDAY that pays gas for the agent |
+| `MERCHANT_API` | The shop's address, e.g. `https://spendshield-psi.vercel.app/api/paid` |
+| `TELEGRAM_BOT_TOKEN` | Optional. Your bot from @BotFather, for phone alerts |
+| `APP_URL` | Optional. Where the alert buttons open (default: the live app) |
+| `ANTHROPIC_API_KEY` | Only for `pnpm example ai-agent`. `claude-agent` uses your Claude Code login instead |
+
+**Switches for a single run**
+
+| Switch | What it does |
+|---|---|
+| `TASK="…"` | The shopping task for the AI agent |
+| `--compromised` | Red-team mode: the agent obeys instructions hidden in what it reads |
+| `PROOF_ONCHAIN=1` | Sends blocked payments to the chain anyway, so the failure shows on the explorer |
+| `TASKS=weather,market-data` | Shopping list for the scripted agent (`pnpm example agent`) |
+| `WAIT_FOR_APPROVAL=1` | Scripted agent waits up to 10 minutes for you to approve, then finishes the purchase |
 
 ## Deploy to Aevum testnet
 
