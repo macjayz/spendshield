@@ -315,7 +315,7 @@ QDay is moving from ECDSA to hybrid ECDSA + ML-DSA-65 signatures, and then to na
 
 ## Feedback for the QDay team
 
-Things we ran into while building, shared to help the ecosystem:
+Things we ran into while building, shared to help the ecosystem. The first two are filed upstream as [qday-io/aevum-starter-kit#3](https://github.com/qday-io/aevum-starter-kit/issues/3).
 
 - The public RPC (`rpc-test.qday.info`) occasionally resets connections (`os error 54`); a retry always worked. MetaMask briefly showed "Unable to connect to QDay Aevum Testnet" at the same times.
 - `https://wiki.qday.info/Knowledge/reference/contracts`, linked from the developer page, returns a 404.
