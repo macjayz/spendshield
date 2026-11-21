@@ -151,6 +151,7 @@ Connect a wallet and: see wallet and vault balances, deposit, withdraw, freeze, 
 Your phone buzzes when an agent needs you. The bot watches SpendShield's events on Aevum and messages every chat subscribed to an owner:
 
 - 🙋 **an agent asks for approval**, with a *Review request #N* button that opens the console scrolled to that request
+- 🚫 **a payment SpendShield blocked**: who tried to pay whom, how much, and why it was refused (read from SpendShield's failed transactions on the Aevum explorer, since a reverted payment leaves no event)
 - 💸 agent payments, ✅/❌ approvals and rejections, 🧊 freeze/unfreeze, 🔒 revoked agents
 
 In Telegram: `/watch 0xYourAddress`, `/unwatch`, `/list`, `/status` (vault balance and pending approvals, grouped by agent). The bot only reads the chain; approving still takes the owner's wallet.
@@ -159,11 +160,12 @@ In Telegram: `/watch 0xYourAddress`, `/unwatch`, `/list`, `/status` (vault balan
 
 A hijacked agent can't move money, but it could flood the owner with requests until one gets approved without a proper look. SpendShield already refuses a second request for the same payment, every request expires, and a frozen vault refuses new requests altogether. On top of that:
 
-- **Telegram groups floods.** After more than 3 requests from one agent in 10 minutes, the owner gets one ⚠️ warning, and the rest arrive as a single 🗂 summary (ids, total asked, how many shops) instead of one buzz each. Optional `DAILY_SUMMARY=09:00` adds one daily review of everything still waiting, grouped by agent.
+- **Telegram groups floods.** After more than 3 requests from one agent in 10 minutes, the owner gets one ⚠️ warning, and the rest arrive as a single 🗂 summary (ids, total asked, how many shops) instead of one buzz each.
+- **Blocked payments are a signal too.** A burst of blocked payments from one agent (say, `MerchantNotAllowed` again and again) raises one 🚨 alarm suggesting the owner revoke it, then a grouped summary. Refusals that never reach the chain (a relayer's free `check()`, a bundler's simulation) cost the agent nothing and aren't visible here. Optional `DAILY_SUMMARY=09:00` adds one daily review of everything still waiting, grouped by agent.
 - **The console reviews by agent.** Each agent shows its open requests, a flood gets a warning banner, and *Reject all* clears one agent's requests (the wallet confirms each, since the contract rejects them one at a time), next to *Revoke agent*.
 - **Read-only vault view.** `/shield?vault=0x…` shows any vault's agents and requests without a wallet; only the owner's wallet can act. The live demo links its request there.
 
-This came from a reader's comment on our demo post. A hard on-chain cap on open requests per agent needs a contract change, so it's on the roadmap for the next SpendShield version.
+These came from readers' comments on our demo post. A hard on-chain cap on open requests per agent needs a contract change, so it's on the roadmap for the next SpendShield version.
 
 ```bash
 # TELEGRAM_BOT_TOKEN from @BotFather in examples/.env, then:

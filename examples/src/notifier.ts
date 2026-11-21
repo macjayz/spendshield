@@ -10,6 +10,11 @@
  * Request floods are grouped. An agent that files more than BURST_LIMIT requests within BURST_WINDOW_MIN
  * minutes gets one warning, and anything after that arrives as a single summary instead of one buzz
  * per request, so a hijacked or looping agent can't wear the owner down with alerts.
+ * Blocked payments are reported too. A payment SpendShield refuses reverts, so it leaves no event; the
+ * bot reads SpendShield's failed transactions from the Aevum explorer instead and tells the owner who
+ * tried to pay whom, and why it was refused. A burst of them (a likely compromised agent) is grouped
+ * into one alarm. Refusals that never reach the chain (a relayer's free check, a bundler's simulation)
+ * cost nothing and are not seen here.
  * With DAILY_SUMMARY=HH:MM (your computer's time), every watched vault also gets one daily review:
  * pending requests grouped by agent, and the day's payments.
  *
@@ -24,8 +29,8 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { formatUnits, getAbiItem, isAddress, type Address } from "viem";
-import { aevumTestnet, getLogsChunked, spendShieldAbi, txUrl } from "@aevum-kit/aevum";
+import { decodeFunctionData, formatUnits, getAbiItem, isAddress, type Address, type Hex } from "viem";
+import { aevumTestnet, getLogsChunked, links, REASON_TEXT, reasonOf, spendShieldAbi, txUrl } from "@aevum-kit/aevum";
 import { connect, required, requiredAddress } from "./env";
 
 const TOKEN = required("TELEGRAM_BOT_TOKEN");
@@ -56,6 +61,8 @@ interface State {
   /** owner -> payments seen since the last daily summary. */
   day?: Record<string, { count: number; total: string }>;
   lastSummaryDate?: string;
+  /** Highest block whose failed SpendShield transactions have been reported. */
+  lastFailBlock?: string | null;
 }
 
 function load(): State {
@@ -293,6 +300,7 @@ async function pollChain() {
         state.lastBlock = head.toString();
         save();
       }
+      if (onAevum && ++failTick % 3 === 0) await pollBlocked(head);
       await flushHeld();
       await dailySummary();
     } catch (e) {
@@ -302,12 +310,110 @@ async function pollChain() {
   }
 }
 
+let failTick = 0;
+
+/** Failed SpendShield transactions from the explorer: payments the contract refused, reported to the vault's owner. */
+async function pollBlocked(head: bigint) {
+  if (state.lastFailBlock == null) {
+    state.lastFailBlock = head.toString(); // start from now
+    save();
+    return;
+  }
+  const url = `${links.explorer}/api?module=account&action=txlist&address=${shield}&startblock=${BigInt(state.lastFailBlock) + 1n}&sort=asc&page=1&offset=100`;
+  const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+  const body = (await res.json()) as { result?: { hash: Hex; blockNumber: string; isError: string; from: Address; input: Hex }[] };
+  const txs = Array.isArray(body.result) ? body.result : [];
+  for (const tx of txs) {
+    if (tx.isError === "1") await reportBlocked(tx).catch((e) => console.error("[blocked]", e instanceof Error ? e.message : e));
+    if (BigInt(tx.blockNumber) > BigInt(state.lastFailBlock!)) state.lastFailBlock = tx.blockNumber;
+  }
+  if (txs.length) save();
+}
+
+async function reportBlocked(tx: { hash: Hex; from: Address; input: Hex }) {
+  let call;
+  try {
+    call = decodeFunctionData({ abi: spendShieldAbi, data: tx.input });
+  } catch {
+    return; // not a SpendShield call we know
+  }
+  let owner: Address, agent: Address, merchant: Address, amount: bigint;
+  if (call.functionName === "payWithSig") [owner, agent, merchant, amount] = call.args as unknown as [Address, Address, Address, bigint];
+  else if (call.functionName === "pay") {
+    [owner, merchant, amount] = call.args as unknown as [Address, Address, bigint];
+    agent = tx.from;
+  } else return;
+  if (!chatsFor(owner).length) return;
+
+  // The explorer decodes SpendShield's revert: PaymentRejected(uint8 reason).
+  const detail = (await fetch(`${links.explorer}/api/v2/transactions/${tx.hash}`, { signal: AbortSignal.timeout(15_000) })
+    .then((r) => r.json())
+    .catch(() => null)) as { revert_reason?: { parameters?: { value?: string }[] } } | null;
+  const code = detail?.revert_reason?.parameters?.[0]?.value;
+  const reason = code !== undefined ? reasonOf(Number(code)) : null;
+
+  const key = `blocked|${owner.toLowerCase()}|${agent.toLowerCase()}`;
+  const now = Date.now();
+  const times = (state.recent![key] = [...(state.recent![key] ?? []).filter((t) => now - t < BURST_WINDOW_MS), now]);
+  const why = reason ? `${reason}: ${REASON_TEXT[reason]}` : "refused by SpendShield";
+
+  if (times.length <= BURST_LIMIT) {
+    for (const chat of chatsFor(owner)) {
+      await send(
+        chat,
+        [
+          `🚫 <b>Blocked payment</b>`,
+          `Agent <code>${short(agent)}</code> tried to pay <b>${amt(amount)}</b> to <code>${esc(merchant)}</code>${txLink(tx.hash)}`,
+          `SpendShield refused it (${esc(why)}). Nothing was paid.`,
+        ].join("\n"),
+      );
+    }
+    return;
+  }
+  const held = state.held![key];
+  if (!held) {
+    state.held![key] = { since: now, ids: [tx.hash], total: String(amount), merchants: [merchant.toLowerCase()] };
+    for (const chat of chatsFor(owner)) {
+      await send(
+        chat,
+        [
+          `🚨 <b>Agent <code>${short(agent)}</code> had ${times.length} payments blocked in ${Math.round(BURST_WINDOW_MS / 60_000)} minutes</b>`,
+          "Nothing was paid, but a burst like this usually means the agent is compromised or misbehaving.",
+          "Consider revoking it. I'll group further blocked attempts into one summary.",
+        ].join("\n"),
+        { text: "Open the console", url: `${APP_URL}/shield#agent-${agent.toLowerCase()}` },
+      );
+    }
+  } else {
+    held.ids.push(tx.hash);
+    held.total = String(BigInt(held.total) + amount);
+    if (!held.merchants.includes(merchant.toLowerCase())) held.merchants.push(merchant.toLowerCase());
+  }
+}
+
 /** Held-back flood requests go out as one summary once the burst window has passed. */
 async function flushHeld() {
   const now = Date.now();
   for (const [key, held] of Object.entries(state.held!)) {
     if (now - held.since < BURST_WINDOW_MS) continue;
-    const [owner, agent] = key.split("|");
+    const blocked = key.startsWith("blocked|");
+    const [owner, agent] = blocked ? key.split("|").slice(1) : key.split("|");
+    if (blocked) {
+      for (const chat of chatsFor(owner)) {
+        await send(
+          chat,
+          [
+            `🗂 <b>Agent <code>${short(agent)}</code>: ${held.ids.length} more blocked payment${held.ids.length > 1 ? "s" : ""}</b>`,
+            `${amt(BigInt(held.total))} in total, to ${held.merchants.length} address${held.merchants.length > 1 ? "es" : ""}. Nothing was paid.`,
+            "If you haven't already, revoke this agent.",
+          ].join("\n"),
+          { text: "Open the console", url: `${APP_URL}/shield#agent-${agent}` },
+        );
+      }
+      delete state.held![key];
+      save();
+      continue;
+    }
     for (const chat of chatsFor(owner)) {
       await send(
         chat,
@@ -348,8 +454,18 @@ async function dailySummary() {
   save();
 }
 
-const me = await tg<{ username: string }>("getMe", {});
+// Retry instead of crashing when the network blips at startup.
+let me: { username: string } | undefined;
+for (let wait = 5; !me; wait = Math.min(wait * 2, 60)) {
+  try {
+    me = await tg<{ username: string }>("getMe", {});
+  } catch (e) {
+    console.error(`[startup] can't reach Telegram (${e instanceof Error ? e.message : e}), retrying in ${wait}s`);
+    await new Promise((r) => setTimeout(r, wait * 1000));
+  }
+}
 console.log(`🤖 @${me.username} is watching SpendShield ${shield} on chain ${chain.id}`);
 console.log(`   Open https://t.me/${me.username}, press Start, then send: /watch 0xYourOwnerAddress`);
+console.log(`   Blocked payments: ${onAevum ? "reported from the explorer" : "not watched (explorer only on Aevum)"}.`);
 console.log(`   Floods: more than ${BURST_LIMIT} requests from one agent in ${BURST_WINDOW_MS / 60_000} min are grouped.${DAILY_SUMMARY ? ` Daily review at ${DAILY_SUMMARY}.` : ""}`);
 await Promise.all([pollCommands(), pollChain()]);
