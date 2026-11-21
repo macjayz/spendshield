@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { LiveAttack } from "@/components/LiveAttack";
 
 export const metadata: Metadata = {
   title: "Demo video",
@@ -34,6 +35,8 @@ export default function DemoPage() {
           Your browser can&apos;t play this video. <a href="/spendshield-demo.mp4">Download it</a> instead.
         </video>
       </section>
+
+      <LiveAttack compact />
 
       <section className="card">
         <h2>What you&apos;re watching</h2>

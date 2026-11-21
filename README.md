@@ -1,10 +1,12 @@
 # SpendShield
 
-**Give your AI agents a budget, not your wallet.**
+**Your AI agent can be tricked. Your money can't.**
 
 SpendShield is a tUSD8 vault on **QDay Aevum testnet** (chain `44005`) that lets a person hand an AI agent a scoped, revocable spending allowance. The agent can pay merchants on its own, but only inside the limits the owner set, and every payment is an on-chain receipt.
 
 Built for the Aevum Builder Challenge #1.
+
+**▶ Try the attack yourself, no wallet needed: https://spendshield-psi.vercel.app** → press **Run the attack live**. In about 30 seconds an agent buys the news, a poisoned headline tells it to pay an attacker, it obeys, and SpendShield blocks it on Aevum. Every step links to its real transaction.
 
 ## We hacked our own AI agent. The contract said no.
 
@@ -21,6 +23,7 @@ The same tools ship as an **MCP server**, so any MCP-capable AI (Claude Code, Cl
 
 | | |
 |---|---|
+| **Try it live** | **https://spendshield-psi.vercel.app** → **Run the attack live** (no wallet, ~30 seconds, real transactions) |
 | **Watch the demo** | **https://spendshield-psi.vercel.app/demo** (2:55, recorded live on Aevum testnet) |
 | **Live app** | **https://spendshield-psi.vercel.app** (owner console + the live pay-per-call shop) |
 | Contract | [`contracts/src/SpendShield.sol`](contracts/src/SpendShield.sol) |
@@ -33,10 +36,12 @@ The same tools ship as an **MCP server**, so any MCP-capable AI (Claude Code, Cl
 
 ## The problem
 
-Agents that buy things (API calls, data, compute, services) need to pay. Today you either:
+An AI agent reads things nobody controls: web pages, API replies, emails, "news". Any of them can hide an instruction, and models do sometimes follow them. So who holds the money matters:
 
-- give the agent a private key that holds money, so one bug or prompt injection can drain it, or
-- approve every payment by hand, so the agent isn't autonomous.
+- If the agent holds a funded key, one poisoned sentence can empty it.
+- If a person has to sign every payment, the agent can't do its job on its own.
+
+We wanted the agent free to spend small amounts, and the money safe even on the day the agent gets fooled. That means the rules can't live in the prompt or in the agent's code. They have to live somewhere the agent can't talk its way past: the contract.
 
 ## The solution
 
@@ -139,6 +144,8 @@ Each quote carries a payment reference that the shop signs itself (an HMAC), wit
 
 Connect a wallet and: see wallet and vault balances, deposit, withdraw, freeze, grant sessions, watch each agent's spend meter, approve or reject requests, and see every agent payment with explorer links. Without a wallet it shows live network-wide activity read from the chain.
 
+**Run the attack live** ([`web/src/app/api/live-demo/route.ts`](web/src/app/api/live-demo/route.ts)) is the one-click demo at the top. A server-side agent with its own session (0.10 per payment, 1.00 a day, the shop only) buys the poisoned news, does what the hidden instruction says, and gets blocked on chain twice before filing an approval request. The steps stream to the page as they land. It's rate-limited (4 runs per visitor per 10 minutes, one run at a time) because every run costs the demo relayer testnet gas. The agent there is a script; the AI agent is in [`examples/`](examples/src/claude-agent.ts). Both go through the same contract checks.
+
 ### Telegram alerts ([`examples/src/notifier.ts`](examples/src/notifier.ts))
 
 Your phone buzzes when an agent needs you. The bot watches SpendShield's events on Aevum and messages every chat subscribed to an owner:
@@ -234,6 +241,9 @@ Copy `web/.env.example` to `web/.env.local` and `examples/.env.example` to `exam
 | `MERCHANT_ADDRESS` | *Server only.* The shop's address that gets paid | `0xbe888540d324898C81F391163156b593046abe47` |
 | `QUOTE_SECRET` | *Server only.* Signs the shop's payment references. Required in production; any long random string (`openssl rand -hex 32`) | set in Vercel, never shared |
 | `TRUSTED_IP_HEADER` | *Server only.* Real visitor IP header for rate limits | `x-vercel-forwarded-for` on Vercel |
+| `LIVE_DEMO_OWNER` | *Server only.* Owner whose vault funds the "Run the attack live" demo | `0x2792b98F8A602E67Af231848a283fA8C0190D49d` |
+| `LIVE_DEMO_AGENT_KEY` | *Server only.* The demo agent's signing key. Holds no money; the owner grants it a session | set in Vercel |
+| `LIVE_DEMO_RELAYER_KEY` | *Server only.* Pays the gas for the demo agent's calls. Fund it with a little tQDAY | set in Vercel |
 | `NEXT_PUBLIC_REPO_URL` | Where the GitHub link points | `https://github.com/macjayz/spendshield` |
 | `NEXT_PUBLIC_WC_PROJECT_ID` | Optional. Turns on WalletConnect for phone wallets | — |
 

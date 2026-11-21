@@ -10,6 +10,7 @@ import { readContract, simulateContract, waitForTransactionReceipt, writeContrac
 import { explain } from "@/lib/errors";
 import { useNetwork } from "@/lib/network";
 import { short } from "@/lib/order";
+import { LiveAttack } from "@/components/LiveAttack";
 
 const DECIMALS = 6;
 const fmt = (v: bigint | undefined) => (v === undefined ? "…" : Number(formatUnits(v, DECIMALS)).toLocaleString("en-US", { maximumFractionDigits: 6 }));
@@ -207,13 +208,15 @@ export default function ShieldPage() {
       <div className="page-head">
         <div>
           <p className="eyebrow">Owner console · {net.label}</p>
-          <h1>Give your AI agents a budget, not your wallet</h1>
+          <h1>Your AI agent can be tricked. Your money can&apos;t.</h1>
           <p className="lede">
             Park tUSD8 in your SpendShield vault, then let each agent spend inside limits you set: per-payment cap, budget per period,
             approved merchants and an expiry. Revoke one agent or freeze them all in one click.
           </p>
         </div>
       </div>
+
+      <LiveAttack />
 
       <section className="card">
         <div className="row-between" style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
