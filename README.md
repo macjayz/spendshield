@@ -315,14 +315,12 @@ QDay is moving from ECDSA to hybrid ECDSA + ML-DSA-65 signatures, and then to na
 
 ## Feedback for the QDay team
 
-Things we ran into while building, shared to help the ecosystem. The first two are filed upstream as [qday-io/aevum-starter-kit#3](https://github.com/qday-io/aevum-starter-kit/issues/3).
+Things we ran into while building, shared to help the ecosystem. The first three are filed upstream as [qday-io/aevum-starter-kit#3](https://github.com/qday-io/aevum-starter-kit/issues/3).
 
-- The public RPC (`rpc-test.qday.info`) occasionally resets connections (`os error 54`); a retry always worked. MetaMask briefly showed "Unable to connect to QDay Aevum Testnet" at the same times.
-- `https://wiki.qday.info/Knowledge/reference/contracts`, linked from the developer page, returns a 404.
 - The starter kit says explorer verification doesn't work yet, but it does now: `forge verify-contract … --verifier blockscout --verifier-url https://explorer-test.qday.info/api/` verified SpendShield on the first try. Worth updating the kit's docs.
-- The explorer's `module=logs&action=getLogs` endpoint returns a contract's whole event history in a few calls, while the RPC caps `eth_getLogs` at 1,000 blocks. We read from the explorer first ([`web/src/lib/shieldLogs.ts`](web/src/lib/shieldLogs.ts)).
+- The explorer's `module=logs&action=getLogs` endpoint returns a contract's whole event history in a few calls, while the RPC caps `eth_getLogs` at 1,000 blocks. We read from the explorer first ([`web/src/lib/shieldLogs.ts`](web/src/lib/shieldLogs.ts)) and fall back to the kit's `getLogsChunked` approach.
+- The public RPC (`rpc-test.qday.info`) occasionally resets connections (`os error 54`); a retry always worked. MetaMask briefly showed "Unable to connect to QDay Aevum Testnet" at the same times.
 - The developer page lists agent wallets, session keys and a stablecoin paymaster as live, but without addresses or docs; the starter kit says they aren't supported for this challenge. A short "what's usable today" table would save builders time.
-- `eth_getLogs` is limited to 1,000 blocks; the starter kit's `getLogsChunked` handles it well. Worth a line in the main docs.
 
 ## Known limits / roadmap
 
