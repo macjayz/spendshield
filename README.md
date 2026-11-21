@@ -27,7 +27,7 @@ The same tools ship as an **MCP server**, so any MCP-capable AI (Claude Code, Cl
 | **Watch the demo** | **https://spendshield-psi.vercel.app/demo** (2:55, recorded live on Aevum testnet) |
 | **Live app** | **https://spendshield-psi.vercel.app** (owner console + the live pay-per-call shop) |
 | Contract | [`contracts/src/SpendShield.sol`](contracts/src/SpendShield.sol) |
-| SpendShield on Aevum | [`0x0E9578a05BEc3D8BB21f0f4F8C00FF54eB3D7B2D`](https://explorer-test.qday.info/address/0x0E9578a05BEc3D8BB21f0f4F8C00FF54eB3D7B2D) |
+| SpendShield on Aevum | [`0x0E9578a05BEc3D8BB21f0f4F8C00FF54eB3D7B2D`](https://explorer-test.qday.info/address/0x0E9578a05BEc3D8BB21f0f4F8C00FF54eB3D7B2D) · [verified source](https://explorer-test.qday.info/address/0x0E9578a05BEc3D8BB21f0f4F8C00FF54eB3D7B2D?tab=contract) |
 | Deploy tx / block | [`0x50e7d5b0…f42e1`](https://explorer-test.qday.info/tx/0x50e7d5b0e86f764c0741bee375ef9eb58128f84a6a84e6e28e3ddd81c83f42e1) / `3581556` |
 | Demo transactions | Agent pays 0.05 (gasless): [`0x62565b41…`](https://explorer-test.qday.info/tx/0x62565b41a8017680db0f069a01a9f0e12667c98f5649a10b236ae04e44d6c35e) · pays 0.02: [`0x108d1c8b…`](https://explorer-test.qday.info/tx/0x108d1c8b0d86b5168295f7db3f6001bcf8568fd3c6710470995d9277df6ebf06) · pays 0.05: [`0x05599ab0…`](https://explorer-test.qday.info/tx/0x05599ab0b13bde317786906eb130b46571fd5351ba9f5fe96a729a35e9cfe489) · blocked at its 0.10 cap, asks owner to approve 1.50: [`0x5691c1cb…`](https://explorer-test.qday.info/tx/0x5691c1cb2f57e8ee287a5ca5ed456526943b7ce050d8a8ed51ff17f400ee230e) · owner approves & pays it: [`0xcf25f7f1…`](https://explorer-test.qday.info/tx/0xcf25f7f1aa9a69a54d1467d07ecbaf85c161ef22abcf098db485add72638e674) · a second request: [`0x0e0a12aa…`](https://explorer-test.qday.info/tx/0x0e0a12aa6443ce13eae8a0b07c6211883ed04600d49522c88b7af38328390512) · owner rejects it: [`0x1c21ccb7…`](https://explorer-test.qday.info/tx/0x1c21ccb7809f1d7449ed3b6ac4fe08aa28716c54292c51295e3dbb1c798304d4) |
 | **Demo video (2:55)** | **https://spendshield-psi.vercel.app/demo** (also in this repo: [`web/public/spendshield-demo.mp4`](web/public/spendshield-demo.mp4)) |
@@ -199,7 +199,7 @@ Everything below uses the live app and the deployed contract; you only need a br
 
 The shop's items return live data: BTC/ETH/USDC prices (CoinGecko), Hong Kong weather (Open-Meteo), and an agent-economy report computed from Aevum chain data. `market-news` carries the planted injection on purpose.
 
-**Heads-up about MetaMask:** MetaMask's automatic scanner may label this brand-new site as risky, because it's a fresh `vercel.app` address asking you to use a new contract that the Aevum explorer can't verify yet. Before you confirm anything, check that the contract is `0x0E9578a05BEc3D8BB21f0f4F8C00FF54eB3D7B2D`. All the code is in this repo.
+**Heads-up about MetaMask:** MetaMask's automatic scanner may label this brand-new site as risky, because it's a fresh `vercel.app` address asking you to use a brand-new contract. The contract's source is [verified on the Aevum explorer](https://explorer-test.qday.info/address/0x0E9578a05BEc3D8BB21f0f4F8C00FF54eB3D7B2D?tab=contract). Before you confirm anything, check that the contract is `0x0E9578a05BEc3D8BB21f0f4F8C00FF54eB3D7B2D`. All the code is in this repo.
 
 ## Run it locally (no funds needed)
 
@@ -319,7 +319,8 @@ Things we ran into while building, shared to help the ecosystem:
 
 - The public RPC (`rpc-test.qday.info`) occasionally resets connections (`os error 54`); a retry always worked. MetaMask briefly showed "Unable to connect to QDay Aevum Testnet" at the same times.
 - `https://wiki.qday.info/Knowledge/reference/contracts`, linked from the developer page, returns a 404.
-- Contract verification on the explorer isn't available yet, so judges can't read verified source on chain; we link the exact commit instead.
+- The starter kit says explorer verification doesn't work yet, but it does now: `forge verify-contract … --verifier blockscout --verifier-url https://explorer-test.qday.info/api/` verified SpendShield on the first try. Worth updating the kit's docs.
+- The explorer's `module=logs&action=getLogs` endpoint returns a contract's whole event history in a few calls, while the RPC caps `eth_getLogs` at 1,000 blocks. We read from the explorer first ([`web/src/lib/shieldLogs.ts`](web/src/lib/shieldLogs.ts)).
 - The developer page lists agent wallets, session keys and a stablecoin paymaster as live, but without addresses or docs; the starter kit says they aren't supported for this challenge. A short "what's usable today" table would save builders time.
 - `eth_getLogs` is limited to 1,000 blocks; the starter kit's `getLogsChunked` handles it well. Worth a line in the main docs.
 
@@ -329,7 +330,6 @@ Things we ran into while building, shared to help the ecosystem:
 - The shop's double-redeem guard is per server instance; across instances a paid quote could be redeemed again until it expires (30 minutes). SpendShield itself never accepts the same payment twice.
 - The Telegram bot runs as a single process; production would host it with persistent storage.
 - Budgets are per agent; shared budgets across a team of agents, per-merchant caps and spending categories are next.
-- Contract verification on the Aevum explorer isn't available yet; the source is in this repo at the deployed commit.
 
 ## Credits and license
 
