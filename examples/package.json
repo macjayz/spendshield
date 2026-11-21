@@ -13,12 +13,15 @@
     "ai-agent": "tsx --env-file-if-exists=.env src/ai-agent.ts",
     "claude-agent": "tsx --env-file-if-exists=.env src/claude-agent.ts",
     "mcp": "tsx --env-file-if-exists=.env src/mcp-server.ts",
-    "notifier": "tsx --env-file-if-exists=.env src/notifier.ts"
+    "notifier": "tsx --env-file-if-exists=.env src/notifier.ts",
+    "smart-agent": "tsx --env-file-if-exists=.env src/smart-agent.ts"
   },
   "dependencies": {
     "@aevum-kit/aevum": "workspace:*",
     "@anthropic-ai/sdk": "1.10.0",
     "@modelcontextprotocol/sdk": "1.32.2",
+    "@zerodev/ecdsa-validator": "5.4.9",
+    "@zerodev/sdk": "5.5.12",
     "viem": "2.57.12"
   },
   "devDependencies": {

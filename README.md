@@ -160,6 +160,25 @@ In Telegram: `/watch 0xYourAddress`, `/unwatch`, `/list`, `/status` (vault balan
 pnpm example notifier
 ```
 
+### Smart-account agents on QDay's bundler ([`examples/src/smart-agent.ts`](examples/src/smart-agent.ts))
+
+The agent doesn't have to be a plain key. Here it's an **ERC-4337 smart account** (Kernel v3.1, EntryPoint v0.7) that sends its own UserOperations through **QDay's bundler** (`bundler.qday.info`). SpendShield works with it unchanged:
+
+| Step | What happened on Aevum |
+|---|---|
+| Owner grants the smart account `0x6Ca6…Ba2f` a session | [`0x3b25fc2c…`](https://explorer-test.qday.info/tx/0x3b25fc2c84146125e3c0d21bc107ff3ae094c4f75687b52225522ca564806c5e) |
+| The smart account buys live weather, paying SpendShield in a UserOperation via the bundler | [`0x0deb4982…`](https://explorer-test.qday.info/tx/0x0deb498282b29e6caeda96b490508fb145045de65127088ad867e21489f39a04) → the shop hands over the data |
+| A hijacked UserOperation tries to pay the attacker 4.5 | **Refused by the bundler's simulation** (`OverPerPaymentCap`). It never reaches a block and costs nothing |
+| The smart account signs a payment (ERC-1271) and a relayer submits it | [`0x70346ae2…`](https://explorer-test.qday.info/tx/0x70346ae28c77a21eed41a7b091b50e2dd10bccf62b5bdad30b6570b54c26bae9) |
+| Owner revokes the session; the next UserOperation is refused (`NoSession`) | [`0x81aa7f72…`](https://explorer-test.qday.info/tx/0x81aa7f726f9fb3da2b51753f1b3ba193a218ada8f79ccb75aca5f1e211afc111) |
+
+```bash
+# SMART_OWNER_KEY (a test wallet with tUSD8 in its vault) in examples/.env, then:
+pnpm example smart-agent
+```
+
+Two Aevum details the script handles: the testnet has KernelFactory v3.1 but not ZeroDev's meta-factory, and the factory isn't staked, so the account is deployed with a plain call to the factory before its first UserOperation (bundlers refuse unstaked-factory deployments under ERC-7562). There's no tUSD8 paymaster yet, so the account holds a little tQDAY for its own gas.
+
 ### What it's built with
 
 | Part | Tools | Why this choice |
@@ -169,6 +188,7 @@ pnpm example notifier
 | Website | Next.js 16, React 19, wagmi, RainbowKit, viem | Hosted on Vercel. Reads history from the Aevum explorer API in one call, with the RPC as a backup. |
 | AI agent | Claude (through Claude Code or the Messages API) | All of Claude's normal tools are switched off; it only gets SpendShield's five tools. |
 | Agent tools | Model Context Protocol (MCP) server, TypeScript | One config line plugs SpendShield into any MCP-capable AI. |
+| Smart-account agent | ZeroDev Kernel v3.1, ERC-4337 EntryPoint v0.7, QDay's bundler | The agent can be a smart account that pays in its own UserOperations; the path QDay's post-quantum accounts will take. |
 | Alerts | Telegram Bot API | Read-only: it can tell you about a request, it can never approve one. |
 | Shop data | CoinGecko (prices), Open-Meteo (weather), Aevum chain data (report) | Real data, so the agent buys something real. |
 | Starting point | [Aevum Starter Kit](https://github.com/qday-io/aevum-starter-kit) (MIT, PQA Labs) | Chain config, ABIs, chunked log reader, relayer pattern. |
@@ -259,6 +279,8 @@ Copy `web/.env.example` to `web/.env.local` and `examples/.env.example` to `exam
 | `MERCHANT_API` | The shop's address, e.g. `https://spendshield-psi.vercel.app/api/paid` |
 | `TELEGRAM_BOT_TOKEN` | Optional. Your bot from @BotFather, for phone alerts |
 | `APP_URL` | Optional. Where the alert buttons open (default: the live app) |
+| `SMART_OWNER_KEY` | Only for `pnpm example smart-agent`. A test owner wallet with tUSD8 in its vault |
+| `SMART_AGENT_KEY`, `BUNDLER_URL` | Optional, for `smart-agent`. The key behind the smart account (default `AGENT_KEY`) and QDay's bundler (default `https://bundler.qday.info`) |
 | `ANTHROPIC_API_KEY` | Only for `pnpm example ai-agent`. `claude-agent` uses your Claude Code login instead |
 
 **Switches for a single run**
@@ -308,7 +330,7 @@ Two sides meet on SpendShield, and both have a reason to pay.
 
 QDay is moving from ECDSA to hybrid ECDSA + ML-DSA-65 signatures, and then to native post-quantum signing. SpendShield is built so that move doesn't require a new contract:
 
-- **Agents can be smart accounts.** Signed agent payments are checked with OpenZeppelin `SignatureChecker`, which accepts ERC-1271 contract wallets. An agent whose wallet verifies ML-DSA (or a hybrid scheme) works with the deployed SpendShield as is.
+- **Agents can be smart accounts, and already are.** Signed agent payments are checked with OpenZeppelin `SignatureChecker`, which accepts ERC-1271 contract wallets, and smart accounts can also pay directly in UserOperations. Both are proven on Aevum with a Kernel account through QDay's bundler ([above](#smart-account-agents-on-qdays-bundler-examplessrcsmart-agentts)). Swapping that account's validator for an ML-DSA (or hybrid) one changes nothing in SpendShield.
 - **A broken key can only spend the budget.** If an agent key is ever forged, classical or quantum, the attacker is held to the same per-payment cap, period budget, allowlist and expiry as the agent, and the owner can revoke or freeze at once. The vault itself is never exposed.
 - **Revocation voids old signatures.** Every signed payment carries the session epoch; revoking or re-granting bumps it, so signatures harvested before a migration can't be replayed after it.
 - **Next:** native ML-DSA verification of agent signatures inside SpendShield once QDay exposes a verifier on chain.
@@ -320,7 +342,7 @@ Things we ran into while building, shared to help the ecosystem. The first three
 - The starter kit says explorer verification doesn't work yet, but it does now: `forge verify-contract … --verifier blockscout --verifier-url https://explorer-test.qday.info/api/` verified SpendShield on the first try. Worth updating the kit's docs.
 - The explorer's `module=logs&action=getLogs` endpoint returns a contract's whole event history in a few calls, while the RPC caps `eth_getLogs` at 1,000 blocks. We read from the explorer first ([`web/src/lib/shieldLogs.ts`](web/src/lib/shieldLogs.ts)) and fall back to the kit's `getLogsChunked` approach.
 - The public RPC (`rpc-test.qday.info`) occasionally resets connections (`os error 54`); a retry always worked. MetaMask briefly showed "Unable to connect to QDay Aevum Testnet" at the same times.
-- The developer page lists agent wallets, session keys and a stablecoin paymaster as live, but without addresses or docs; the starter kit says they aren't supported for this challenge. A short "what's usable today" table would save builders time.
+- The developer page lists agent wallets, session keys and a stablecoin paymaster as live, but without addresses or docs. The bundler does work (we use it for the smart-account agent); a tUSD8 paymaster would let agent accounts skip holding tQDAY. A short "what's usable today" table would save builders time.
 
 ## Known limits / roadmap
 
