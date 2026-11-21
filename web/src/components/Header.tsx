@@ -11,6 +11,7 @@ import { useNetwork } from "@/lib/network";
 const links = [
   { href: "/shield", label: "Owner console" },
   { href: "/setup", label: "Wallet setup" },
+  { href: "/demo", label: "Demo video" },
 ];
 
 export function Header() {

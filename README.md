@@ -21,12 +21,13 @@ The same tools ship as an **MCP server**, so any MCP-capable AI (Claude Code, Cl
 
 | | |
 |---|---|
+| **Watch the demo** | **https://spendshield-psi.vercel.app/demo** (2:55, recorded live on Aevum testnet) |
 | **Live app** | **https://spendshield-psi.vercel.app** (owner console + the live pay-per-call shop) |
 | Contract | [`contracts/src/SpendShield.sol`](contracts/src/SpendShield.sol) |
 | SpendShield on Aevum | [`0x0E9578a05BEc3D8BB21f0f4F8C00FF54eB3D7B2D`](https://explorer-test.qday.info/address/0x0E9578a05BEc3D8BB21f0f4F8C00FF54eB3D7B2D) |
 | Deploy tx / block | [`0x50e7d5b0…f42e1`](https://explorer-test.qday.info/tx/0x50e7d5b0e86f764c0741bee375ef9eb58128f84a6a84e6e28e3ddd81c83f42e1) / `3581556` |
 | Demo transactions | Agent pays 0.05 (gasless): [`0x62565b41…`](https://explorer-test.qday.info/tx/0x62565b41a8017680db0f069a01a9f0e12667c98f5649a10b236ae04e44d6c35e) · pays 0.02: [`0x108d1c8b…`](https://explorer-test.qday.info/tx/0x108d1c8b0d86b5168295f7db3f6001bcf8568fd3c6710470995d9277df6ebf06) · pays 0.05: [`0x05599ab0…`](https://explorer-test.qday.info/tx/0x05599ab0b13bde317786906eb130b46571fd5351ba9f5fe96a729a35e9cfe489) · blocked at its 0.10 cap, asks owner to approve 1.50: [`0x5691c1cb…`](https://explorer-test.qday.info/tx/0x5691c1cb2f57e8ee287a5ca5ed456526943b7ce050d8a8ed51ff17f400ee230e) · owner approves & pays it: [`0xcf25f7f1…`](https://explorer-test.qday.info/tx/0xcf25f7f1aa9a69a54d1467d07ecbaf85c161ef22abcf098db485add72638e674) · a second request: [`0x0e0a12aa…`](https://explorer-test.qday.info/tx/0x0e0a12aa6443ce13eae8a0b07c6211883ed04600d49522c88b7af38328390512) · owner rejects it: [`0x1c21ccb7…`](https://explorer-test.qday.info/tx/0x1c21ccb7809f1d7449ed3b6ac4fe08aa28716c54292c51295e3dbb1c798304d4) |
-| Demo video | `TBD` |
+| **Demo video (2:55)** | **https://spendshield-psi.vercel.app/demo** (also in this repo: [`web/public/spendshield-demo.mp4`](web/public/spendshield-demo.mp4)) |
 
 ---
 
