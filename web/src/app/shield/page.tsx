@@ -12,6 +12,7 @@ import { useNetwork } from "@/lib/network";
 import { short } from "@/lib/order";
 import { LiveAttack } from "@/components/LiveAttack";
 import { TryLimits } from "@/components/TryLimits";
+import { BlockedCounter } from "@/components/BlockedCounter";
 
 const DECIMALS = 6;
 const fmt = (v: bigint | undefined) => (v === undefined ? "…" : Number(formatUnits(v, DECIMALS)).toLocaleString("en-US", { maximumFractionDigits: 6 }));
@@ -280,6 +281,8 @@ export default function ShieldPage() {
       <LiveAttack />
 
       <TryLimits />
+
+      <BlockedCounter />
 
       <section className="card">
         <div className="row-between" style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
