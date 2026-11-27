@@ -7,6 +7,7 @@ import { useState } from "react";
 import { formatUnits, getAbiItem, type PublicClient } from "viem";
 import { useAccount, usePublicClient } from "wagmi";
 import { useToken } from "@/components/useToken";
+import { ShowMore, usePaged } from "@/components/ShowMore";
 import { useNetwork } from "@/lib/network";
 import { orderLabel, short } from "@/lib/order";
 
@@ -50,6 +51,7 @@ export default function ActivityPage() {
   });
 
   const total = logs.data?.items.reduce((sum, l) => sum + (l.args.amount ?? 0n), 0n) ?? 0n;
+  const page = usePaged(logs.data?.items.length ?? 0, 10);
 
   return (
     <main className="shell">
@@ -116,6 +118,7 @@ export default function ActivityPage() {
           )}
 
           {logs.data && logs.data.items.length > 0 && (
+            <>
             <div className="table-wrap">
               <table className="data">
                 <thead>
@@ -128,7 +131,7 @@ export default function ActivityPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {logs.data.items.map((l) => (
+                  {logs.data.items.slice(0, page.shown).map((l) => (
                     <tr key={`${l.transactionHash}-${l.logIndex}`}>
                       <td className="mono">{l.args.orderId ? orderLabel(l.args.orderId) : "—"}</td>
                       <td className="mono">{short(l.args.payer ?? "")}</td>
@@ -149,6 +152,8 @@ export default function ActivityPage() {
                 </tbody>
               </table>
             </div>
+            <ShowMore paged={page} noun="payments" />
+            </>
           )}
         </section>
       )}

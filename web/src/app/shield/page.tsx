@@ -13,6 +13,7 @@ import { short } from "@/lib/order";
 import { LiveAttack } from "@/components/LiveAttack";
 import { TryLimits } from "@/components/TryLimits";
 import { BlockedCounter } from "@/components/BlockedCounter";
+import { ShowMore, usePaged } from "@/components/ShowMore";
 
 const DECIMALS = 6;
 const fmt = (v: bigint | undefined) => (v === undefined ? "…" : Number(formatUnits(v, DECIMALS)).toLocaleString("en-US", { maximumFractionDigits: 6 }));
@@ -234,6 +235,13 @@ export default function ShieldPage() {
   }
 
   // ------------------------------------------------------------ render
+  // Long tables show 10 rows at a time. A deep link (#request-19, #agent-0x…) still reaches its row.
+  const focusReq = focusId ? (history.data?.requests.findIndex(({ id }) => id.toString() === focusId) ?? -1) : -1;
+  const focusSession = focusAgent ? (history.data?.sessions.findIndex(({ agent: a }) => a.toLowerCase() === focusAgent) ?? -1) : -1;
+  const reqPage = usePaged(history.data?.requests.length ?? 0, 10, focusReq);
+  const sessionPage = usePaged(history.data?.sessions.length ?? 0, 10, focusSession);
+  const paidPage = usePaged(history.data?.paid.length ?? 0, 10);
+
   if (!shield) {
     return (
       <main className="shell">
@@ -461,6 +469,7 @@ export default function ShieldPage() {
         </div>
         {h && h.sessions.length === 0 && <p className="empty">No agents yet.</p>}
         {h && h.sessions.length > 0 && (
+          <>
           <div className="table-wrap">
             <table className="data">
               <thead>
@@ -477,7 +486,7 @@ export default function ShieldPage() {
                 </tr>
               </thead>
               <tbody>
-                {h.sessions.map(({ agent: a, s, left }) => {
+                {h.sessions.slice(0, sessionPage.shown).map(({ agent: a, s, left }) => {
                   const expired = Number(s.policy.expiresAt) * 1000 < Date.now();
                   const periodOver = Date.now() / 1000 >= Number(s.periodStart) + s.policy.period;
                   const spent = periodOver ? 0n : s.spentInPeriod;
@@ -516,6 +525,8 @@ export default function ShieldPage() {
               </tbody>
             </table>
           </div>
+          <ShowMore paged={sessionPage} noun="agents" />
+          </>
         )}
       </section>
 
@@ -578,6 +589,7 @@ export default function ShieldPage() {
         )}
         {h && h.requests.length === 0 && <p className="empty">No requests.</p>}
         {h && h.requests.length > 0 && (
+          <>
           <div className="table-wrap">
             <table className="data">
               <thead>
@@ -592,7 +604,7 @@ export default function ShieldPage() {
                 </tr>
               </thead>
               <tbody>
-                {h.requests.map(({ id, q }) => {
+                {h.requests.slice(0, reqPage.shown).map(({ id, q }) => {
                   const expired = Number(q.expiresAt) * 1000 < Date.now();
                   const pending = q.status === 1 && !expired;
                   return (
@@ -623,6 +635,8 @@ export default function ShieldPage() {
               </tbody>
             </table>
           </div>
+          <ShowMore paged={reqPage} noun="requests" />
+          </>
         )}
       </section>
 
@@ -637,6 +651,7 @@ export default function ShieldPage() {
         {history.error && <p className="empty">Couldn&apos;t read events: {(history.error as Error).message}</p>}
         {h && h.paid.length === 0 && <p className="empty">No payments yet.</p>}
         {h && h.paid.length > 0 && (
+          <>
           <div className="table-wrap">
             <table className="data">
               <thead>
@@ -650,7 +665,7 @@ export default function ShieldPage() {
                 </tr>
               </thead>
               <tbody>
-                {h.paid.map((l) => (
+                {h.paid.slice(0, paidPage.shown).map((l) => (
                   <tr key={`${l.transactionHash}-${l.logIndex}`}>
                     <td className="mono">{short(l.args.agent ?? "")}</td>
                     <td className="mono">{short(l.args.merchant ?? "")}</td>
@@ -669,6 +684,8 @@ export default function ShieldPage() {
               </tbody>
             </table>
           </div>
+          <ShowMore paged={paidPage} noun="payments" />
+          </>
         )}
       </section>
     </main>
